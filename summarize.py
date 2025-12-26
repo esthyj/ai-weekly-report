@@ -2,9 +2,12 @@ import os
 from openai import OpenAI
 from news_crawl_test import crawl_insurance_ai_news
 from dotenv import load_dotenv
+import httpx
+
+http_client=httpx.Client(verify=False)
 
 load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), http_client=http_client)
 
 def summarize_article(content: str) -> str:
     if not content or len(content.strip()) < 50:
@@ -34,15 +37,16 @@ def summarize_article(content: str) -> str:
     5. For [Title], Use noun-only endings
     6. For [Summary1], [Summary2], [Insight], end sentences with noun-ending forms like "~임", "~함", "~있음" instead of formal endings like "~입니다", "~합니다", "~있습니다"
     7. In insight, When referring to "our company" in Korean, use "당사".
+    8. Please write [Summary1], [Summary2], and [Insight] each within 100 characters
 
     <output_format>
     [Title]
     Generate a title that summarizes the content of the news.
 
-    [Summary 1]
+    [Summary1]
     Describe the new service or product and its key technical features.
 
-    [Summary 2]
+    [Summary2]
     Describe the AI technologies or AI methodologies applied in the service.
 
     [Insight]
@@ -66,7 +70,7 @@ def get_summarized_news():
 
     for _, row in df.iterrows():
         summary = summarize_article(row["content"])
-        results+=summary
+        results+=summary+"\n"
     print("Summary END:", results)
     print("Summarize End")
 
