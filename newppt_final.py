@@ -1,0 +1,150 @@
+import re
+from pptx import Presentation
+from pptx.util import Pt
+from pptx.dml.color import RGBColor  
+
+summarized_text = '''
+[Title] 미래에셋생명, AI 기반 맞춤형 건광관리 서비스 '헬스케어 AI' 제공 [Summary1] 사용자의 건강검진 기록과 의료 데이터를 종합해 주요 질환의 발병 가능성을 예측하여, 사용자가 선제적으로 위험 인자를 관리할 수 있도록 도움 제공 [Summary2] 미래에셋생명의 AI 헬스케어 서비스는 질병 예측 AI, 기대 수명 예측, 의료비 예측, 개인 맞춤 건강 가이드 네 가지 핵심 특징을 갖추고 있음 [Insight] 당사도 향후 여성 헬스케어 서비스를 제공할 경우, 여성에게서 빈번하게 발생하는 주요 질환의 발병 가능성과 예상 의료비 기반으로 개인별 건강·재무 계획 수립을 지원할 수 있을것으로 기대됨 [Title] 카카오뱅크, 생성형 AI를 활용해 대화만으로 송금할 수 있는 'AI이체' 출시 [Summary1] 최근 이체 내역에 대상의 이름이 있는 경우, 대화창에 '김이지에게 오만원 보내줘＇와 같이 입력하면 은행명이나 계좌번호를 직접 입력하지 않아도 대상의 이름만으로 이체 가능 [Summary2] 고객 요청이 불분명하면 재질문을 통해 질문을 명확히 하거나 수취인 검증 등 일반 이체와 동일한 인증 절차를 거치게 하는 등 착오송금 방지를 위한 절차도 강화  [Insight] 당사 AI Lab에서도 AI 챗봇으로 온라인 채널 내 서비스/기능을 간편하게 연결할 예정이며, 향후 기술 발전에 맞추어 고객 편의 향상을 위한 AI 기반 기능을 지속 확대할 계획임 [Title] 구글, 성능이 크게 향상된 차세대 AI 모델 '제미나이 3' 공개 [Summary1] 고난도 추론이 가능한 '제미나이3 딥싱크 (Gemini 3 Deep Think)' 모델, 에이전트 중심 개발 플랫폼인 '구글 안티그래비티 (Google Antigravity)'도 공개 [Summary2] 모델의 사전 훈련과 사후 훈련이 개선되어 성능이 향상된 것으로 분석됨 [Insight] 제미나이 3 및 계속해서 고도화되고 있는 생성형 AI 활용으로 직원들의 업무 효율성 향상 기대
+'''
+
+TAG_RE = re.compile(r'\[(Title|Summary1|Summary2|Insight)\]\s*', re.IGNORECASE)
+
+# 태그별 스타일 설정 (prefix, font_name, font_size, underline, split_lines)
+TAG_STYLES = {
+    "title":    ("",   "한화고딕 B",  12, False, False),
+    "summary1": ("• ", "한화고딕 EL", 12, False, True),
+    "summary2": ("• ", "한화고딕 EL", 12, False, True),
+    "insight":  ("➔ ", "한화고딕 B",  12, True,  True),
+}
+DEFAULT_STYLE = ("", "한화고딕 EL", 12, False, True)
+
+
+def parse_sections(text: str):
+    matches = list(TAG_RE.finditer(text))
+    return [
+        (m.group(1).lower(), text[m.end():matches[i+1].start() if i+1 < len(matches) else len(text)].strip())
+        for i, m in enumerate(matches)
+        if text[m.end():matches[i+1].start() if i+1 < len(matches) else len(text)].strip()
+    ]
+
+
+def find_shape_by_index(prs: Presentation, shape_index: int, slide_index: int = 0):
+    """특정 슬라이드의 특정 인덱스 shape 반환"""
+    if slide_index >= len(prs.slides):
+        return None, None
+    
+    slide = prs.slides[slide_index]
+    shapes = list(slide.shapes)
+    
+    if shape_index >= len(shapes):
+        return None, None
+    
+    return slide, shapes[shape_index]
+
+
+def list_all_shapes(pptx_path: str):
+    """디버깅용: 모든 슬라이드의 shape 정보 출력"""
+    prs = Presentation(pptx_path)
+    for slide_idx, slide in enumerate(prs.slides):
+        print(f"\n=== 슬라이드 {slide_idx} ===")
+        for i, shape in enumerate(slide.shapes):
+            name = getattr(shape, "name", "N/A")
+            has_tf = hasattr(shape, "has_text_frame") and shape.has_text_frame
+            text_preview = ""
+            if has_tf and shape.text_frame.text:
+                text_preview = shape.text_frame.text[:30].replace('\n', ' ') + "..."
+            print(f"  [{i}] {name} (text_frame: {has_tf}) {text_preview}")
+
+
+def add_styled_run(paragraph, text, font_name, font_size, underline=False, color=None):
+    r = paragraph.add_run()
+    r.text = text
+    r.font.name = font_name
+    r.font.size = Pt(font_size)
+    r.font.underline = underline
+    if color:
+        r.font.color.rgb = color
+
+
+def set_number_and_date(prs: Presentation, number: str, date: str, 
+                        shape_index: int = 4, slide_index: int = 0):
+    """숫자와 날짜를 특정 TextBox에 입력"""
+    _, shape = find_shape_by_index(prs, shape_index, slide_index)
+    
+    if not shape:
+        raise ValueError(f'슬라이드 {slide_index}의 {shape_index}번째 shape을 찾지 못했습니다.')
+    if not shape.has_text_frame:
+        raise ValueError(f'{shape_index}번째 shape에 text_frame이 없습니다.')
+
+    tf = shape.text_frame
+    tf.clear()
+    
+    # 텍스트 구성 (예: "제25호 | 2025년 12월 26일")
+    combined_text = f"제{number}호 | {date}"
+    
+    p = tf.paragraphs[0]
+    add_styled_run(p, combined_text, "한화고딕 L", 11, color=RGBColor(0x6C, 0x6A, 0x67))
+
+
+def set_textbox_from_summarizedtxt(prs: Presentation, text: str, 
+                                    shape_index: int = 15, slide_index: int = 0):
+    """특정 슬라이드의 특정 인덱스 shape에 텍스트 삽입"""
+    _, shape = find_shape_by_index(prs, shape_index, slide_index)
+    
+    if not shape:
+        raise ValueError(f'슬라이드 {slide_index}의 {shape_index}번째 shape을 찾지 못했습니다.')
+    if not shape.has_text_frame:
+        raise ValueError(f'{shape_index}번째 shape에 text_frame이 없습니다.')
+
+    tf = shape.text_frame
+    tf.clear()
+    sections = parse_sections(text)
+
+    if not sections:
+        add_styled_run(tf.paragraphs[0], text.strip(), "한화고딕 EL", 12)
+        return
+
+    first_para_used = False
+    for tag, content in sections:
+        prefix, font_name, font_size, underline, split = TAG_STYLES.get(tag, DEFAULT_STYLE)
+        lines = [ln.strip() for ln in content.splitlines() if ln.strip()] if split else [content.strip()]
+
+        for line in filter(None, lines):
+            p = tf.paragraphs[0] if not first_para_used and not tf.paragraphs[0].text else tf.add_paragraph()
+            first_para_used = True
+            add_styled_run(p, f"{prefix}{line}" if prefix else line, font_name, font_size, underline)
+
+        if tag == "insight":
+            add_styled_run(tf.add_paragraph(), " ", "한화고딕 EL", 9)
+
+
+def create_report(pptx_in: str, pptx_out: str, number: str, date: str, text: str):
+    """PPT 보고서 생성 (숫자/날짜 + 요약 텍스트)"""
+    prs = Presentation(pptx_in)
+    
+    # 1단계: 숫자와 날짜를 인덱스 4번 shape에 입력
+    set_number_and_date(prs, number, date, shape_index=4, slide_index=0)
+    
+    # 2단계: 요약 텍스트를 인덱스 15번 shape에 입력
+    set_textbox_from_summarizedtxt(prs, text, shape_index=15, slide_index=0)
+    
+    # 저장
+    prs.save(pptx_out)
+
+
+if __name__ == "__main__":
+    
+    # 사용자 입력 받기
+    number = input("호수를 입력하세요 (예: 25): ")
+    date = input("날짜를 입력하세요 (예: 2025년 12월 26일): ")
+    
+    # 보고서 생성
+    create_report(
+        pptx_in="AIWeeklyReport_format.pptx",
+        pptx_out="output.pptx",
+        number=number,
+        date=date,
+        text=summarized_text
+    )
+    
+    print("완료! output.pptx가 생성되었습니다.")
