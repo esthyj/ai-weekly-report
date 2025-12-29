@@ -2,7 +2,11 @@
 - automates web news crawling
 - automatically summarizes news articles
 - generates PowerPoint (PPTX) slides with customized styling.
-![AI Weekly Report](./weekly_report_ex.png)
+<p align="center">
+  <img src="./weekly_report_ex.png" width="600">
+  <br>
+  <em>Example of Weekly Report</em>
+</p>
 
 ## ⚙️ Installation
 
