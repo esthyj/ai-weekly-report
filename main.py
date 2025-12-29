@@ -1,7 +1,7 @@
-from news_crawler import get_selected_news
-from news_summarize import summarize_articles
-from ppt_maker import create_report
-from ailab_summarize import ailab_summarized
+from src.news_crawler import get_selected_news
+from src.news_summarize import summarize_articles
+from src.ppt_maker import create_report
+from src.ailab_summarize import ailab_summarized
 
 def main():
     ### STEP 1: News Crawling
@@ -38,8 +38,8 @@ def main():
     print("📊 5단계: PPT 보고서 생성")
     print("="*60)
     create_report(
-        pptx_in="AIWeeklyReport_format.pptx",
-        pptx_out="output.pptx",
+        pptx_in="templates/AIWeeklyReport_format.pptx",
+        pptx_out="output/output.pptx",
         number=number,
         date=date,
         text1=summarized_text,
@@ -47,7 +47,7 @@ def main():
     )
 
     print("\n" + "="*60)
-    print("✅ 완료! output.pptx가 생성되었습니다.")
+    print("✅ 완료! output/output.pptx가 생성되었습니다.")
     print("="*60)
 
 

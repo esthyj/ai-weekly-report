@@ -29,7 +29,7 @@
 
 2. Run the script
 ```bash
-   python newppt_final.py
+   python main.py
 ```
 
 3. Follow the prompts
