@@ -3,7 +3,7 @@
 - automatically summarizes news articles
 - generates PowerPoint (PPTX) slides with customized styling.
 <p align="center">
-  <img src="./weekly_report_ex.png" width="600">
+  <img src="./weekly_report_ex.png" width="500">
   <br>
   <em>Example of Weekly Report</em>
 </p>
