@@ -34,13 +34,13 @@ SEARCH_CATEGORIES = [
     {
         "category": "보험사",
         "queries": [
-            "삼성화재", "현대해상", "DB손해보험", "KB손해보험", "메리츠화재",
-            "삼성생명", "교보생명", "한화생명", "신한라이프", "NH농협생명", "KB라이프",
+            "삼성화재", "현대해상", "DB손해보험", "KB손해보험", "메리츠화재", "토스인슈어런스",
+            "삼성생명", "교보생명", "한화생명", "신한라이프", "NH농협생명", "KB라이프", "NH농협생명"
         ]
     },
     {
         "category": "은행",
-        "queries": ["우리은행", "국민은행", "신한은행", "하나은행", "기업은행"]
+        "queries": ["토스뱅크", "우리은행", "국민은행", "신한은행", "하나은행", "기업은행"]
     },
     {
         "category": "Tech",
@@ -48,9 +48,10 @@ SEARCH_CATEGORIES = [
     },
     {
         "category": "증권사",
-        "queries": ["NH투자증권", "미래에셋증권", "한국투자증권", "삼성증권", "신한투자증권", "KB증권", "키움증권"]
+        "queries": ["NH투자증권", "미래에셋증권", "한국투자증권", "삼성증권", "신한투자증권", "KB증권", "키움증권", "토스증권"]
     },
 ]
+
 
 # ============================================================
 # SSL 설정
@@ -65,12 +66,14 @@ def setup_ssl():
         return original_request(self, *args, **kwargs)
     requests.Session.request = patched_request
 
+
 # ============================================================
 # 유틸리티 함수
 # ============================================================
 def get_rss_url(query: str, days: int) -> str:
     encoded_query = f"{query} AI when:{days}d".replace(" ", "+")
     return f"https://news.google.com/rss/search?q={encoded_query}&hl=ko&gl=KR&ceid=KR:ko"
+
 
 def calculate_score(title: str, content: str) -> int:
     text = f"{title} {content}"
@@ -80,12 +83,14 @@ def calculate_score(title: str, content: str) -> int:
             score += weight * 2 if keyword in title else weight
     return score
 
+
 def decode_url(link: str) -> str:
     try:
         result = gnewsdecoder(link)
         return result.get('decoded_url', link) if isinstance(result, dict) else result
     except Exception:
         return link
+
 
 def fetch_article(url: str, config: Config) -> Optional[str]:
     """기사 내용을 가져옴. 실패시 None 반환"""
@@ -98,6 +103,7 @@ def fetch_article(url: str, config: Config) -> Optional[str]:
     except Exception:
         return None
 
+
 # ============================================================
 # 기사 선택 함수
 # ============================================================
@@ -107,27 +113,24 @@ def select_articles(df: pd.DataFrame, num_select: int = 4) -> pd.DataFrame:
         print("선택할 기사가 없습니다.")
         return df
     
-    # 전체 결과 표시
     print(f"\n{'='*60}")
     print(f"📰 총 {len(df)}개 기사 수집 완료 - {num_select}개를 선택하세요")
     print(f"{'='*60}\n")
     
     display_df = df[["category", "company", "score", "title"]].copy()
-    display_df.index = range(1, len(df) + 1)  # 1부터 시작하는 인덱스
+    display_df.index = range(1, len(df) + 1)
     print(display_df.to_string())
     
-    # 사용자 입력 받기
     print(f"\n선택할 기사 번호 {num_select}개를 입력하세요 (공백으로 구분, 예: 5 6 3 15)")
     user_input = input(">>> ").strip()
     
     selected_indices = [int(x) for x in user_input.split()]
-    
-    # 선택된 기사 반환 (0-based index로 변환)
     selected_df = df.iloc[[i - 1 for i in selected_indices]].reset_index(drop=True)
     
     print(f"\n✅ 선택 완료!")
     
     return selected_df
+
 
 # ============================================================
 # 메인 크롤러
@@ -158,7 +161,6 @@ def crawl_news(cfg: CrawlerConfig = CrawlerConfig()) -> pd.DataFrame:
             print(f"\n  🔍 {company}")
             feed = feedparser.parse(get_rss_url(company, cfg.days))
             
-            # 후보 수집
             candidates = []
             for entry in feed.entries:
                 if len(candidates) >= cfg.candidates_per_query:
@@ -186,7 +188,6 @@ def crawl_news(cfg: CrawlerConfig = CrawlerConfig()) -> pd.DataFrame:
                 })
                 print(f"    📰 {entry.title[:35]}... (점수: {score})")
             
-            # 최고 점수 기사 선택
             if candidates:
                 best = max(candidates, key=lambda x: x["score"])
                 seen_urls.add(best["link"])
@@ -200,6 +201,7 @@ def crawl_news(cfg: CrawlerConfig = CrawlerConfig()) -> pd.DataFrame:
     
     return pd.DataFrame(results)
 
+
 def get_selected_news(num_select: int = 4) -> pd.DataFrame:
     """크롤링 후 사용자가 선택한 기사 반환"""
     df = crawl_news()
@@ -210,6 +212,7 @@ def get_selected_news(num_select: int = 4) -> pd.DataFrame:
     return select_articles(df, num_select=num_select)
 
 
+# 테스트용 (직접 실행 시)
 if __name__ == "__main__":
     final_df = get_selected_news(num_select=4)
     
