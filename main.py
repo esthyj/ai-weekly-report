@@ -8,8 +8,10 @@ def main():
     print("\n" + "="*60)
     print("📰 STEP 1: News Crawling")
     print("="*60)
-    selected_news_df = get_selected_news(num_select=4)
-    
+    num_input = input("선택할 뉴스 개수를 입력하세요 (기본값: 4): ").strip()
+    num_news = int(num_input) if num_input else 4
+    selected_news_df = get_selected_news(num_select=num_news)
+    # 사람이 개입해서 num_news 개수만큼 뉴스를 선택
     if selected_news_df.empty:
         print("❌ No news selected. END.")
         return
@@ -47,7 +49,8 @@ def main():
     )
 
     print("\n" + "="*60)
-    print("✅ 완료! output/output.pptx가 생성되었습니다.")
+    print("✅ 모든 프로세스 완료!")
+    print("output/output.pptx 파일 생성까지 최대 5분정도 소요될 수 있습니다. 감사합니다.")
     print("="*60)
 
 

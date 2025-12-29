@@ -14,7 +14,7 @@ def ailab_summarized():
     """AI Lab 뉴스 요약 결과를 반환하는 함수"""
     
     # txt 파일 읽기
-    with open("ailab_content.txt", "r", encoding="utf-8") as f:
+    with open("data/ailab_content.txt", "r", encoding="utf-8") as f:
         content = f.read()
 
     # OpenAI API 호출
