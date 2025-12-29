@@ -1,7 +1,8 @@
 # Weekly Report AI Agent
-- automates web crawling
+- automates web news crawling
 - automatically summarizes news articles
 - generates PowerPoint (PPTX) slides with customized styling.
+![AI Weekly Report](./weekly_report_ex.png)
 
 ## ⚙️ Installation
 
