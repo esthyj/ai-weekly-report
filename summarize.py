@@ -1,6 +1,6 @@
 import os
 from openai import OpenAI
-from news_crawl_test import crawl_insurance_ai_news
+from news_crawler import get_selected_news
 from dotenv import load_dotenv
 import httpx
 
@@ -63,8 +63,7 @@ def summarize_article(content: str) -> str:
     return response.choices[0].message.content.strip()
 
 def get_summarized_news():
-    df = crawl_insurance_ai_news()
-    df=df[:3]
+    df = get_selected_news(num_select=4)
     print("Crawl Success!")
     results = ''
 
