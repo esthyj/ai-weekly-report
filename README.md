@@ -1,8 +1,10 @@
 # Weekly Report AI Agent
 
+## 🗝️ Key Features
 - automates web news crawling
 - automatically summarizes news articles
 - generates PowerPoint (PPTX) slides with customized styling.
+![Workflow](diagram.png)
 
 ## ⚙️ Installation
 
@@ -34,8 +36,10 @@
 
 3. Follow the prompts
 ```
-   Enter report issue number (e.g., 25): 26
-   Enter report date (e.g., 2025년 12월 26일): 2025년 12월 30일
+   리포트 발행 호수를 입력하세요 (예: 25): 26
+   리포트 발행 날짜를 입력하세요 (예: 2025년 12월 26일): 2025년 12월 30일
+   선택할 뉴스 개수를 입력하세요 (기본값: 4): 3
+   선택할 기사 번호를 입력하세요 (공백으로 구분, 예: 5 6 3 15): 7 2 10 8
 ```
 
 4. `output.pptx` will be generated

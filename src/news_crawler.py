@@ -14,7 +14,7 @@ from newspaper import Article, Config
 # ============================================================
 @dataclass
 class CrawlerConfig:
-    max_total: int = 20
+    max_total: int = 30
     days: int = 14
     candidates_per_query: int = 5
     min_content_length: int = 150
@@ -121,7 +121,7 @@ def select_articles(df: pd.DataFrame, num_select: int = 4) -> pd.DataFrame:
     display_df.index = range(1, len(df) + 1)
     print(display_df.to_string())
     
-    print(f"\n선택할 기사 번호 {num_select}개를 입력하세요 (공백으로 구분, 예: 5 6 3 15)")
+    print(f"\n선택할 기사 번호 {num_select}개를 입력하세요 (공백으로 구분, 예: 5 6 3 15):")
     user_input = input(">>> ").strip()
     
     selected_indices = [int(x) for x in user_input.split()]

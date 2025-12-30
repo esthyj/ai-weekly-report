@@ -4,7 +4,15 @@ from src.ppt_maker import create_report
 from src.ailab_summarize import ailab_summarized
 
 def main():
-    ### STEP 1: News Crawling
+
+    # 0단계: 보고서 정보 입력
+    print("\n" + "="*60)
+    print("📝 0단계: 보고서 정보 입력")
+    print("="*60)
+    number = input("리포트 발행 호수를 입력하세요 (예: 25): ")
+    date = input("리포트 발행 날짜를 입력하세요 (예: 2025년 12월 26일): ")
+
+    ### 1단계: 뉴스 크롤링
     print("\n" + "="*60)
     print("📰 STEP 1: News Crawling")
     print("="*60)
@@ -28,16 +36,9 @@ def main():
     print("="*60)
     summarized_text2 = ailab_summarized()
     
-    # 4단계: 사용자 입력
+    # 4단계: PPT 생성
     print("\n" + "="*60)
-    print("📝 4단계: 보고서 정보 입력")
-    print("="*60)
-    number = input("리포트 발행 호수를 입력하세요 (예: 25): ")
-    date = input("리포트 발행 날짜를 입력하세요 (예: 2025년 12월 26일): ")
-    
-    # 5단계: PPT 생성
-    print("\n" + "="*60)
-    print("📊 5단계: PPT 보고서 생성")
+    print("📊 단계: PPT 보고서 생성")
     print("="*60)
     create_report(
         pptx_in="templates/AIWeeklyReport_format.pptx",
@@ -50,7 +51,8 @@ def main():
 
     print("\n" + "="*60)
     print("✅ 모든 프로세스 완료!")
-    print("output/output.pptx 파일 생성까지 최대 5분정도 소요될 수 있습니다. 감사합니다.")
+    print("output/output.pptx 파일 생성까지 최대 5분정도 소요될 수 있습니다.")
+    print("조금만 기다려주세요... 감사합니다!")
     print("="*60)
 
 
