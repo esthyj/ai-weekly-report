@@ -4,7 +4,7 @@
 - automates web news crawling
 - automatically summarizes news articles
 - generates PowerPoint (PPTX) slides with customized styling.
-![Workflow](diagram.png)
+![Workflow](data/diagram.png)
 
 ## ⚙️ Installation
 
