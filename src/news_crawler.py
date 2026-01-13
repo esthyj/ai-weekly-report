@@ -30,6 +30,7 @@ PRIORITY_KEYWORDS = {
     "플랫폼": 3, "솔루션": 3, "시스템": 2,
 }
 
+# 규모가 어느 정도 있는 금융 기업을 검색하기 위해서 아래와 같이 기업들을 리스트함. 
 SEARCH_CATEGORIES = [
     {
         "category": "보험사",
