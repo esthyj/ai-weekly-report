@@ -6,14 +6,13 @@ from pptx.dml.color import RGBColor
 # ============================================================
 # Settings
 # ============================================================
-TAG_RE = re.compile(r'\[(Title|Summary1|Summary2|Insight)\]\s*', re.IGNORECASE)
+TAG_RE = re.compile(r'\[(Title|Summary\d*|Insight)\]\s*', re.IGNORECASE)
 
 # 태그별 스타일 설정 (prefix, font_name, font_size, underline, split_lines)
 TAG_STYLES = {
-    "title":    ("",   "한화고딕 B",  12, False, False),
-    "summary1": ("• ", "한화고딕 EL", 12, False, True),
-    "summary2": ("• ", "한화고딕 EL", 12, False, True),
-    "insight":  ("➔ ", "한화고딕 B",  12, True,  True),
+    "title":   ("",   "한화고딕 B",  12, False, False),
+    "summary": ("• ", "한화고딕 EL", 12, False, True),
+    "insight": ("➔ ", "한화고딕 B",  12, True,  True),
 }
 DEFAULT_STYLE = ("", "한화고딕 EL", 12, False, True)
 
@@ -22,7 +21,15 @@ DEFAULT_STYLE = ("", "한화고딕 EL", 12, False, True)
 # Utility Functions
 # ============================================================
 
-# Split a long text by tag (header) and extract each tag’s section content into a list
+# 태그에 맞는 스타일 반환 (Summary1, Summary2 등 모두 summary 스타일 적용)
+def get_tag_style(tag: str):
+    tag = tag.lower()
+    if tag.startswith("summary"):
+        return TAG_STYLES["summary"]
+    return TAG_STYLES.get(tag, DEFAULT_STYLE)
+
+
+# Split a long text by tag (header) and extract each tag's section content into a list
 def parse_sections(text: str):
     matches = list(TAG_RE.finditer(text))
     return [
@@ -30,6 +37,7 @@ def parse_sections(text: str):
         for i, m in enumerate(matches)
         if text[m.end():matches[i+1].start() if i+1 < len(matches) else len(text)].strip()
     ]
+
 
 # Return specific index shape
 def find_shape_by_index(prs: Presentation, shape_index: int, slide_index: int = 0):
@@ -43,6 +51,7 @@ def find_shape_by_index(prs: Presentation, shape_index: int, slide_index: int = 
         return None, None
     
     return slide, shapes[shape_index]
+
 
 # Add a styled text run
 def add_styled_run(paragraph, text, font_name, font_size, underline=False, color=None):
@@ -104,7 +113,7 @@ def set_textbox_from_summarizedtxt(prs: Presentation, text: str,
     first_para_used = False
     for tag, content in sections:
         # Find the style for the tag
-        prefix, font_name, font_size, underline, split = TAG_STYLES.get(tag, DEFAULT_STYLE)
+        prefix, font_name, font_size, underline, split = get_tag_style(tag)
         lines = [ln.strip() for ln in content.splitlines() if ln.strip()] if split else [content.strip()]
 
         for line in filter(None, lines):
@@ -137,6 +146,7 @@ def create_report(pptx_in: str, pptx_out: str, number: str, date: str,
     prs.save(pptx_out)
     print(f"  💾 {pptx_out} 저장 완료!")
 
+
 # For debugging: output shape information for all slides
 def list_all_shapes(pptx_path: str):
     prs = Presentation(pptx_path)
@@ -154,13 +164,13 @@ def list_all_shapes(pptx_path: str):
 # Test (If needed)
 if __name__ == "__main__":
 
-    list_all_shapes("AIWeeklyReport_format.pptx")
+    list_all_shapes("../templates/AIWeeklyReport_format.pptx")
 
-    test_text1 = '''[Title] 테스트 제목 [Summary1] 요약1 내용 [Summary2] 요약2 내용 [Insight] 인사이트 내용'''
+    test_text1 = '''[Title] 테스트 제목 [Summary1] 요약1 내용 [Summary2] 요약2 내용 [Summary3] 요약3 내용 [Insight] 인사이트 내용'''
     test_text2 = '''[Title] AI Lab 테스트 [Summary1] AI Lab 요약1 [Summary2] AI Lab 요약2 [Insight] AI Lab 인사이트'''
     
     create_report(
-        pptx_in="AIWeeklyReport_format.pptx",
+        pptx_in="../templates/AIWeeklyReport_format.pptx",
         pptx_out="test_output.pptx",
         number="테스트",
         date="2025년 1월 1일",
