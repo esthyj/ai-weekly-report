@@ -1,5 +1,5 @@
 ## 🛠️ Algorithm
-###### Description in multi-summaries
+###### Multi-summaries
 
 ## news_crawler.py
 ### 1단계: 검색 대상 정의
