@@ -10,19 +10,21 @@ from googlenewsdecoder import gnewsdecoder
 from newspaper import Article, Config
 
 # ============================================================
-# 설정
+# Settings 
 # ============================================================
 @dataclass
 class CrawlerConfig:
-    max_total: int = 30
-    days: int = 14
-    candidates_per_query: int = 5
-    min_content_length: int = 150
-    request_timeout: int = 15
+    max_total: int = 30 # numbers of companies to crawl
+    days: int = 14 # days to look back
+    candidates_per_query: int = 5 # candidates per company query
+    min_content_length: int = 150 # minimum length of article content
+    request_timeout: int = 15 # seconds
     user_agent: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
+# keywords that, if present in the title, will exclude the article
 EXCLUDE_KEYWORDS = ["배타적", "영상", "종목", "주가", "급등", "급락", "매수", "매도"]
 
+# keywords with associated priority scores
 PRIORITY_KEYWORDS = {
     "출시": 10, "런칭": 10, "오픈": 8, "서비스": 12,
     "발표": 6, "도입": 6, "개발": 5, "자동": 10,
@@ -30,7 +32,9 @@ PRIORITY_KEYWORDS = {
     "플랫폼": 3, "솔루션": 3, "시스템": 2,
 }
 
-# 규모가 어느 정도 있는 금융 기업을 검색하기 위해서 아래와 같이 기업들을 리스트함. 
+# To identify financial companies of a certain scale, the following companies were listed
+# category: Industry of the company
+# queries: List of company names to search for
 SEARCH_CATEGORIES = [
     {
         "category": "보험사",
@@ -55,7 +59,7 @@ SEARCH_CATEGORIES = [
 
 
 # ============================================================
-# SSL 설정
+# SSL Settings
 # ============================================================
 def setup_ssl():
     ssl._create_default_https_context = ssl._create_unverified_context
@@ -69,13 +73,15 @@ def setup_ssl():
 
 
 # ============================================================
-# 유틸리티 함수
+# Utility Functions
 # ============================================================
+
+# make rss url by company name and days to look for
 def get_rss_url(query: str, days: int) -> str:
     encoded_query = f"{query} AI when:{days}d".replace(" ", "+")
     return f"https://news.google.com/rss/search?q={encoded_query}&hl=ko&gl=KR&ceid=KR:ko"
 
-
+# calculate article score based on presence of priority keywords
 def calculate_score(title: str, content: str) -> int:
     text = f"{title} {content}"
     score = 0
@@ -84,7 +90,7 @@ def calculate_score(title: str, content: str) -> int:
             score += weight * 2 if keyword in title else weight
     return score
 
-
+# RSS URLs are decoded into the original article URLs
 def decode_url(link: str) -> str:
     try:
         result = gnewsdecoder(link)
@@ -92,9 +98,8 @@ def decode_url(link: str) -> str:
     except Exception:
         return link
 
-
+# Fetch Article Content
 def fetch_article(url: str, config: Config) -> Optional[str]:
-    """기사 내용을 가져옴. 실패시 None 반환"""
     try:
         article = Article(url, language='ko', config=config)
         article.download()
@@ -106,10 +111,9 @@ def fetch_article(url: str, config: Config) -> Optional[str]:
 
 
 # ============================================================
-# 기사 선택 함수
+# Select Articles (Human in the loop)
 # ============================================================
 def select_articles(df: pd.DataFrame, num_select: int = 4) -> pd.DataFrame:
-    """사용자가 기사를 선택할 수 있게 함"""
     if df.empty:
         print("선택할 기사가 없습니다.")
         return df
@@ -122,7 +126,7 @@ def select_articles(df: pd.DataFrame, num_select: int = 4) -> pd.DataFrame:
     display_df.index = range(1, len(df) + 1)
     print(display_df.to_string())
     
-    print(f"\n선택할 기사 번호 {num_select}개를 입력하세요 (공백으로 구분, 예: 5 6 3 15):")
+    print(f"\n[SELECT] 선택할 기사 번호 {num_select}개를 입력하세요 (공백으로 구분, 예: 5 6 3 15):")
     user_input = input(">>> ").strip()
     
     selected_indices = [int(x) for x in user_input.split()]
@@ -134,7 +138,7 @@ def select_articles(df: pd.DataFrame, num_select: int = 4) -> pd.DataFrame:
 
 
 # ============================================================
-# 메인 크롤러
+# Main Cralwer
 # ============================================================
 def crawl_news(cfg: CrawlerConfig = CrawlerConfig()) -> pd.DataFrame:
     setup_ssl()
@@ -160,23 +164,28 @@ def crawl_news(cfg: CrawlerConfig = CrawlerConfig()) -> pd.DataFrame:
                 break
             
             print(f"\n  🔍 {company}")
+            # Article List Extraction
             feed = feedparser.parse(get_rss_url(company, cfg.days))
             
             candidates = []
             for entry in feed.entries:
                 if len(candidates) >= cfg.candidates_per_query:
                     break
+                # Articles are excluded if the title contains any EXCLUDE KEYWORDS
                 if any(kw in entry.title for kw in EXCLUDE_KEYWORDS):
                     continue
                 
+                # Decode URL (RSS URL -> Original URL)
                 url = decode_url(entry.link)
                 if url in seen_urls:
                     continue
                 
+                #Fech Article Content
                 content = fetch_article(url, article_config)
                 if not content:
                     continue
                 
+                #Calculate Score of Article
                 score = calculate_score(entry.title, content)
                 candidates.append({
                     "category": cat["category"],
@@ -189,6 +198,7 @@ def crawl_news(cfg: CrawlerConfig = CrawlerConfig()) -> pd.DataFrame:
                 })
                 print(f"    📰 {entry.title[:35]}... (점수: {score})")
             
+            # Select the highest scored article among candidates
             if candidates:
                 best = max(candidates, key=lambda x: x["score"])
                 seen_urls.add(best["link"])
@@ -202,9 +212,8 @@ def crawl_news(cfg: CrawlerConfig = CrawlerConfig()) -> pd.DataFrame:
     
     return pd.DataFrame(results)
 
-
+# After crawling, return the articles selected by the user
 def get_selected_news(num_select: int = 4) -> pd.DataFrame:
-    """크롤링 후 사용자가 선택한 기사 반환"""
     df = crawl_news()
     
     if df.empty:
@@ -213,7 +222,7 @@ def get_selected_news(num_select: int = 4) -> pd.DataFrame:
     return select_articles(df, num_select=num_select)
 
 
-# 테스트용 (직접 실행 시)
+# Test (If needed)
 if __name__ == "__main__":
     final_df = get_selected_news(num_select=4)
     

@@ -4,14 +4,15 @@ import pandas as pd
 from openai import OpenAI
 from dotenv import load_dotenv
 
-# 환경 설정
+
+# Key Settings
 load_dotenv()
 http_client = httpx.Client(verify=False)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), http_client=http_client)
 
 
+# Summarize Article Content
 def summarize_article(content: str) -> str:
-    """단일 기사 내용을 요약"""
     if not content or len(content.strip()) < 50:
         return "Not enough content to summarize."
 
@@ -65,8 +66,8 @@ Suggest a concrete way this service or technology could be applied in our insura
     return response.choices[0].message.content.strip()
 
 
+# Summarize the articles in the DataFrame and return a combined string
 def summarize_articles(df: pd.DataFrame) -> str:
-    """DataFrame의 기사들을 요약하여 결합된 문자열 반환"""
     if df.empty:
         print("⚠️ 요약할 기사가 없습니다.")
         return ""
@@ -85,7 +86,7 @@ def summarize_articles(df: pd.DataFrame) -> str:
     return combined
 
 
-# 테스트용 (직접 실행 시)
+# Test (If needed)
 if __name__ == "__main__":
     from news_crawler import get_selected_news
     

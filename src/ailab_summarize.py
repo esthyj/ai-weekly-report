@@ -3,21 +3,20 @@ import httpx
 from dotenv import load_dotenv
 import os
 
-# API 키 설정
+# API Key Settings
 http_client = httpx.Client(verify=False)
 
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), http_client=http_client)
 
-
+# Return AI Lab news summarization results
 def ailab_summarized():
-    """AI Lab 뉴스 요약 결과를 반환하는 함수"""
     
-    # txt 파일 읽기
+    # Ailab Contents are saved in txt file
     with open("data/ailab_content.txt", "r", encoding="utf-8") as f:
         content = f.read()
 
-    # OpenAI API 호출
+    # OpenAI API call
     response = client.chat.completions.create(
         model="gpt-5.1",
         messages=[
@@ -64,7 +63,7 @@ def ailab_summarized():
     return result
 
 
-# 직접 실행할 때만 출력
+# Test (If needed)
 if __name__ == "__main__":
     result = ailab_summarized()
     print(result)

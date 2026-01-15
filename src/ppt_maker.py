@@ -4,7 +4,7 @@ from pptx.util import Pt
 from pptx.dml.color import RGBColor
 
 # ============================================================
-# 설정
+# Settings
 # ============================================================
 TAG_RE = re.compile(r'\[(Title|Summary1|Summary2|Insight)\]\s*', re.IGNORECASE)
 
@@ -111,29 +111,28 @@ def set_textbox_from_summarizedtxt(prs: Presentation, text: str,
 
 
 # ============================================================
-# 메인 함수
+# Main Function
 # ============================================================
+# Create Report PPTX
 def create_report(pptx_in: str, pptx_out: str, number: str, date: str, 
                   text1: str, text2: str):
-    """PPT 보고서 생성"""
     prs = Presentation(pptx_in)
     
-    # 1단계: 숫자와 날짜 입력
+    # Step 1: Enter number of the report and date.
     set_number_and_date(prs, number, date, shape_index=4, slide_index=0)
     
-    # 2단계: 첫 번째 요약 텍스트 입력
+    # Step 2: Enter first summary text
     set_textbox_from_summarizedtxt(prs, text1, shape_index=15, slide_index=0)
     
-    # 3단계: 두 번째 요약 텍스트 입력
+    # Step 3: Enter second summary text
     set_textbox_from_summarizedtxt(prs, text2, shape_index=16, slide_index=0)
     
-    # 저장
+    # Save
     prs.save(pptx_out)
     print(f"  💾 {pptx_out} 저장 완료!")
 
-
+# For debugging: output shape information for all slides
 def list_all_shapes(pptx_path: str):
-    """디버깅용: 모든 슬라이드의 shape 정보 출력"""
     prs = Presentation(pptx_path)
     for slide_idx, slide in enumerate(prs.slides):
         print(f"\n=== 슬라이드 {slide_idx} ===")
@@ -146,12 +145,11 @@ def list_all_shapes(pptx_path: str):
             print(f"  [{i}] {name} (text_frame: {has_tf}) {text_preview}")
 
 
-# 테스트용 (직접 실행 시)
+# Test (If needed)
 if __name__ == "__main__":
-    # 디버깅: shape 목록 확인
-    # list_all_shapes("AIWeeklyReport_format.pptx")
-    
-    # 테스트 텍스트로 보고서 생성
+
+    list_all_shapes("AIWeeklyReport_format.pptx")
+
     test_text1 = '''[Title] 테스트 제목 [Summary1] 요약1 내용 [Summary2] 요약2 내용 [Insight] 인사이트 내용'''
     test_text2 = '''[Title] AI Lab 테스트 [Summary1] AI Lab 요약1 [Summary2] AI Lab 요약2 [Insight] AI Lab 인사이트'''
     
