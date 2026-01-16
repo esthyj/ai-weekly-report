@@ -29,36 +29,45 @@ def summarize_article(content: str) -> str:
             {
                 "role": "user",
                 "content": f"""
-<task>
-Analyze the following news article and produce a structured Korean output.
+    <task>
+    Analyze the following news article and produce a structured Korean output.
 
-<requirements>
-1. Please generate exactly one sentence each after [Summary1] and [Summary2].
-2. Write ONE insight sentence for an insurance company use case.
-3. Be concise and factual. Do NOT add information not mentioned or logically implied in the article.
-4. Use professional Korean business tone.
-5. For [Title], Use noun-only endings
-6. For [Summary1], [Summary2], [Insight], end sentences with noun-ending forms like "~임", "~함", "~있음" instead of formal endings like "~입니다", "~합니다", "~있습니다"
-7. In insight, When referring to "our company" in Korean, use "당사".
-8. Please write [Summary1], [Summary2], and [Insight] each within 110 characters
+    <requirements>
+    1. Generate [Summary1], [Summary2], ... [SummaryN] based on the article's content depth.
+      - Do NOT attempt to summarize the entire article.
+      - Focus on high-impact facts, decisions, or implications.
+      - Minimum 2, Maximum 3 summaries
+    2. Write ONE insight sentence for an insurance company use case.
+    3. Be concise and factual. Do NOT add information not mentioned or logically implied in the article.
+    4. Use professional Korean business tone.
+    5. For [Title], use noun-only endings.
+    6. For [Summary], [Insight], end sentences with noun-ending forms like "~임", "~함", "~있음" instead of formal endings like "~입니다", "~합니다", "~있습니다"
+    7. In insight, when referring to "our company" in Korean, use "당사".
+    8. Please write each [Summary] and [Insight] between 100 and 200 characters.
+    9. Avoid redundancy: [Title], [Summary], and [Insight] must each contain unique information without overlapping content or repeating the same expressions.
 
-<output_format>
-[Title]
-Generate a title that summarizes the content of the news.
+    <output_format>
+    [Title]
+    Generate a title that summarizes the content of the news.
 
-[Summary1]
-Describe the new service or product and its key features.
+    [Summary1]
+    First key point (e.g., new service/product and its features)
 
-[Summary2]
-Describe the AI technologies or AI methodologies applied in the service.
+    [Summary2]
+    Second key point (e.g., AI technologies applied) - if applicable
 
-[Insight]
-Suggest a concrete way this service or technology could be applied in our insurance company
-(e.g., underwriting, claims, customer service, sales, risk management).
+    [Summary3]
+    - if applicable
 
-<article>
-{content}
-"""
+    ... (continue as needed)
+
+    [Insight]
+    Suggest a concrete way this service or technology could be applied in our insurance company, along with expected benefits if applicable.
+    (e.g., underwriting, claims, customer service, sales, marketing, risk management).
+
+    <article>
+    {content}
+    """
             }
         ],
         temperature=0.3
@@ -88,9 +97,8 @@ def summarize_articles(df: pd.DataFrame) -> str:
 
 # Test (If needed)
 if __name__ == "__main__":
-    from news_crawler import get_selected_news
-    
-    df = get_selected_news(num_select=4)
+
+    df = pd.read_excel("output/selected_news.xlsx", engine='openpyxl')
     if not df.empty:
         result = summarize_articles(df)
         print("\n" + "="*60)

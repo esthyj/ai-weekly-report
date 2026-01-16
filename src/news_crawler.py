@@ -133,7 +133,15 @@ def select_articles(df: pd.DataFrame, num_select: int = 4) -> pd.DataFrame:
     selected_df = df.iloc[[i - 1 for i in selected_indices]].reset_index(drop=True)
     
     print(f"\n✅ 선택 완료!")
-    
+
+    filename = f"output/selected_news.xlsx"
+    selected_df.to_excel(
+        filename,
+        index=False,
+        engine='openpyxl'  # openpyxl은 기본적으로 UTF-8 지원
+    )
+    print(f"📁 Excel 저장 완료: {filename}")
+        
     return selected_df
 
 

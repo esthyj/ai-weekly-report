@@ -2,6 +2,7 @@ from src.news_crawler import get_selected_news
 from src.news_summarize import summarize_articles
 from src.ppt_maker import create_report
 from src.ailab_summarize import ailab_summarized
+from datetime import datetime
 
 def main():
 
@@ -40,9 +41,13 @@ def main():
     print("\n" + "="*60)
     print("📊 단계: PPT 보고서 생성")
     print("="*60)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_filename = f"output/AIWeeklyReport_{timestamp}.pptx"
+
     create_report(
         pptx_in="templates/AIWeeklyReport_format.pptx",
-        pptx_out="output/output.pptx",
+        pptx_out=output_filename,
         number=number,
         date=date,
         text1=summarized_text,
