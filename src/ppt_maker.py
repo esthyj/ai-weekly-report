@@ -90,7 +90,7 @@ def set_number_and_date(prs: Presentation, number: str, date: str,
 
 # Insert summarized text structured with tag-specific styles
 def set_textbox_from_summarizedtxt(prs: Presentation, text: str, 
-                                    shape_index: int = 15, slide_index: int = 0):
+                                    shape_index: int = 12, slide_index: int = 0):
     # Find specific index shape
     _, shape = find_shape_by_index(prs, shape_index, slide_index)
     
@@ -137,10 +137,10 @@ def create_report(pptx_in: str, pptx_out: str, number: str, date: str,
     set_number_and_date(prs, number, date, shape_index=4, slide_index=0)
     
     # Step 2: Enter first summary text
-    set_textbox_from_summarizedtxt(prs, text1, shape_index=15, slide_index=0)
+    set_textbox_from_summarizedtxt(prs, text1, shape_index=12, slide_index=0)
     
     # Step 3: Enter second summary text
-    set_textbox_from_summarizedtxt(prs, text2, shape_index=16, slide_index=0)
+    set_textbox_from_summarizedtxt(prs, text2, shape_index=10, slide_index=0)
     
     # Save
     prs.save(pptx_out)

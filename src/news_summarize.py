@@ -98,7 +98,7 @@ def summarize_articles(df: pd.DataFrame) -> str:
 # Test (If needed)
 if __name__ == "__main__":
 
-    df = pd.read_excel("output/selected_news.xlsx", engine='openpyxl')
+    df = pd.read_excel("../output/selected_news.xlsx", engine='openpyxl')
     if not df.empty:
         result = summarize_articles(df)
         print("\n" + "="*60)
