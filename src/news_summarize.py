@@ -12,10 +12,13 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), http_client=http_client)
 
 
 # Summarize Article Content
-def summarize_article(content: str) -> str:
+def summarize_article(title: str, content: str) -> str:
     if not content or len(content.strip()) < 50:
         return "Not enough content to summarize."
 
+    if " - " in title:
+        title = title.split(" - ")[0].strip()
+        
     response = client.chat.completions.create(
         model="gpt-5.1",
         messages=[
@@ -40,15 +43,18 @@ def summarize_article(content: str) -> str:
     2. Write ONE insight sentence for an insurance company use case.
     3. Be concise and factual. Do NOT add information not mentioned or logically implied in the article.
     4. Use professional Korean business tone.
-    5. For [Title], use noun-only endings.
+    5. For [Title], use the original title provided below EXACTLY as-is. Do NOT modify, translate, or rephrase it.
     6. For [Summary], [Insight], end sentences with noun-ending forms like "~임", "~함", "~있음" instead of formal endings like "~입니다", "~합니다", "~있습니다"
     7. In insight, when referring to "our company" in Korean, use "당사".
     8. Please write each [Summary] and [Insight] between 100 and 200 characters.
     9. Avoid redundancy: [Title], [Summary], and [Insight] must each contain unique information without overlapping content or repeating the same expressions.
 
+    <original_title>
+    {title}
+
     <output_format>
     [Title]
-    Generate a title that summarizes the content of the news.
+    (Copy the original title exactly as provided above. Do not change anything.)
 
     [Summary1]
     First key point (e.g., new service/product and its features)
@@ -86,7 +92,7 @@ def summarize_articles(df: pd.DataFrame) -> str:
     
     for idx, row in df.iterrows():
         print(f"  📝 요약 중... ({idx + 1}/{total}) {row.get('title', 'N/A')[:40]}...")
-        summary = summarize_article(row["content"])
+        summary = summarize_article(row["title"], row["content"])
         results.append(summary)
     
     combined = "\n".join(results)
