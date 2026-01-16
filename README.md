@@ -5,7 +5,7 @@
 - Automatically summarizes news articles and AI Lab news
 - Generates PowerPoint (PPTX) slides with customized styling
 <br>
-![Workflow](data/diagram.png)
+![Workflow](data/diagram_new.png)
 
 ## ⚙️ Installation
 
