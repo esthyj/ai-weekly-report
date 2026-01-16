@@ -1,9 +1,10 @@
 # Weekly Report AI Agent
 
 ## 🗝️ Key Features
-- automates web news crawling
-- automatically summarizes news articles
-- generates PowerPoint (PPTX) slides with customized styling.
+- Automates web news crawling
+- Automatically summarizes news articles and AI Lab news
+- Generates PowerPoint (PPTX) slides with customized styling
+<br>
 ![Workflow](data/diagram.png)
 
 ## ⚙️ Installation
