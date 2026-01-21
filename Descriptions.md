@@ -1,7 +1,7 @@
 ## 🛠️ Algorithm
 ###### Multi-summaries
 
-## news_crawler.py
+## news_crawler.py Algorithm
 ### 1단계: 검색 대상 정의
 - SEARCH_CATEGORIES에 검색하고 싶은 기업명이 나열되어 있음.
 - 당사 AI 위클리 리포트에 작성하는 주요 내용은 타 금융 대기업 내 진행되고 있는 AI 사업들이기 때문 (스타트업 X)
