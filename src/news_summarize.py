@@ -39,7 +39,7 @@ def summarize_article(title: str, content: str) -> str:
     1. Generate [Summary1], [Summary2], ... [SummaryN] based on the article's content depth.
       - Do NOT attempt to summarize the entire article.
       - Focus on high-impact facts, decisions, or implications.
-      - Minimum 2, Maximum 3 summaries
+      - Default to 2 summaries, extend to 3 only if essential. 
     2. Write ONE insight sentence for an insurance company use case.
     3. Be concise and factual. Do NOT add information not mentioned or logically implied in the article.
     4. Use professional Korean business tone.
@@ -87,16 +87,47 @@ def summarize_articles(df: pd.DataFrame) -> str:
         print("⚠️ 요약할 기사가 없습니다.")
         return ""
     
-    results = []
+    all_summaries = []
     total = len(df)
     
+    # 1단계: 모든 기사 요약
     for idx, row in df.iterrows():
         print(f"  📝 요약 중... ({idx + 1}/{total}) {row.get('title', 'N/A')[:40]}...")
         summary = summarize_article(row["title"], row["content"])
-        results.append(summary)
+        all_summaries.append({
+            "index": idx + 1,
+            "title": row.get("title", "N/A"),
+            "summary": summary
+        })
     
-    combined = "\n".join(results)
-    print(f"  ✅ {total}개 기사 요약 완료!")
+    # 2단계: 전체 결과 출력
+    print("\n" + "="*60)
+    print("📋 전체 요약 결과")
+    print("="*60)
+    
+    for item in all_summaries:
+        print(f"\n[{item['index']}] {item['title'][:50]}...")
+        print("-"*40)
+        print(item['summary'])
+        print()
+    
+    # 3단계: 사용자 선택 (띄어쓰기 기반)
+    print("="*60)
+    print("1개 이상의 포함할 요약 번호를 띄어쓰기로 구분하여 입력하세요. (예: 1 3 5)")
+    print("="*60)
+    
+    selection = input("선택: ").strip()
+    selected_indices = {int(x) for x in selection.split()}
+    
+    # 4단계: 선택된 것만 결합
+    results = [
+        item['summary'] 
+        for item in all_summaries 
+        if item['index'] in selected_indices
+    ]
+    
+    combined = "\n\n".join(results)
+    print(f"\n✅ {len(results)}개 요약이 선택되었습니다!")
     
     return combined
 
@@ -108,6 +139,6 @@ if __name__ == "__main__":
     if not df.empty:
         result = summarize_articles(df)
         print("\n" + "="*60)
-        print("📋 요약 결과:")
+        print("📋 최종 선택된 요약:")
         print("="*60)
         print(result)
