@@ -66,7 +66,7 @@ ai-weekly-report/
 │   └── AIWeeklyReport_format.pptx  # PowerPoint template
 ├── .env                       # Environment variables (API keys)
 ├── .gitignore
-├── main.py                    # Main entry point
+├── main.py                    # Run main.py
 ├── requirements.txt           # Python dependencies
 └── README.md
 ```
