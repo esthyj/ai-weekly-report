@@ -45,3 +45,29 @@
 
 4. `output.pptx` will be generated
 
+## 📁 File Structure
+
+```
+ai-weekly-report/
+├── data/
+│   ├── ailab_content.txt      # AI Lab content input file
+│   └── diagram_new.png        # Workflow diagram image
+├── notebooks/
+│   └── check_env.ipynb        # Environment check notebook
+├── output/                    # Generated output files
+│   └── *.pptx                 # Generated PowerPoint reports
+├── src/
+│   ├── __init__.py
+│   ├── ailab_summarize.py     # AI Lab content summarizer
+│   ├── news_crawler.py        # Web news crawler
+│   ├── news_summarize.py      # News article summarizer
+│   └── ppt_maker.py           # PowerPoint generator
+├── templates/
+│   └── AIWeeklyReport_format.pptx  # PowerPoint template
+├── .env                       # Environment variables (API keys)
+├── .gitignore
+├── main.py                    # Main entry point
+├── requirements.txt           # Python dependencies
+└── README.md
+```
+
