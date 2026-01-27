@@ -71,3 +71,9 @@ ai-weekly-report/
 └── README.md
 ```
 
+## ⚠️ Limitations
+
+- **News Volume**: If there is a limited volume of new news content, the generated report may not achieve a high level of quality.
+- **Past Events**: Even if the content itself refers to past events, it may still be extracted if the news article was published recently.
+
+

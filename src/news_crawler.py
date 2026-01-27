@@ -10,16 +10,8 @@ from googlenewsdecoder import gnewsdecoder
 from newspaper import Article, Config
 
 # ============================================================
-# Settings 
+# Settings
 # ============================================================
-@dataclass
-class CrawlerConfig:
-    max_total: int = 30 # numbers of companies to crawl
-    days: int = 14 # days to look back
-    candidates_per_query: int = 5 # candidates per company query
-    min_content_length: int = 150 # minimum length of article content
-    request_timeout: int = 15 # seconds
-    user_agent: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
 # keywords that, if present in the title, will exclude the article
 EXCLUDE_KEYWORDS = ["배타적", "영상", "종목", "주가", "급등", "급락", "매수", "매도"]
@@ -40,12 +32,16 @@ SEARCH_CATEGORIES = [
         "category": "보험사",
         "queries": [
             "삼성화재", "현대해상", "DB손해보험", "KB손해보험", "메리츠화재", "토스인슈어런스",
-            "삼성생명", "교보생명", "한화생명", "신한라이프", "NH농협생명", "KB라이프", "NH농협생명"
+            "삼성생명", "교보생명", "한화생명", "신한라이프", "NH농협생명", "KB라이프"
         ]
     },
     {
         "category": "은행",
         "queries": ["토스뱅크", "우리은행", "국민은행", "신한은행", "하나은행", "기업은행"]
+    },
+    {
+        "category": "카드사",
+        "queries": ["삼성카드", "신한카드", "KB국민카드", "현대카드", "롯데카드", "우리카드", "하나카드", "BC카드", "NH농협카드"]
     },
     {
         "category": "Tech",
@@ -56,6 +52,18 @@ SEARCH_CATEGORIES = [
         "queries": ["NH투자증권", "미래에셋증권", "한국투자증권", "삼성증권", "신한투자증권", "KB증권", "키움증권", "토스증권"]
     },
 ]
+
+# Calculate total number of companies from SEARCH_CATEGORIES
+TOTAL_COMPANIES = sum(len(cat["queries"]) for cat in SEARCH_CATEGORIES)
+
+@dataclass
+class CrawlerConfig:
+    max_total: int = TOTAL_COMPANIES # numbers of companies to crawl (auto-calculated from SEARCH_CATEGORIES)
+    days: int = 14 # days to look back
+    candidates_per_query: int = 5 # candidates per company query
+    min_content_length: int = 150 # minimum length of article content
+    request_timeout: int = 15 # seconds
+    user_agent: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
 
 # ============================================================
