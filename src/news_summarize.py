@@ -1,6 +1,8 @@
 import pandas as pd
+from typing import Optional
 from .openai_client import get_shared_client
 from .config import SELECTED_NEWS_FILE
+from openai import APIError, RateLimitError, APIConnectionError
 
 # Get shared OpenAI client instance
 client = get_shared_client()
@@ -66,35 +68,58 @@ USER_PROMPT_TEMPLATE = """
 # ============================================================
 
 # Summarize Article Content
-def summarize_article(title: str, content: str) -> str:
+def summarize_article(title: str, content: str) -> Optional[str]:
     if not content or len(content.strip()) < 50:
-        return "Not enough content to summarize."
+        print("      ⚠️ 콘텐츠가 없거나 너무 짧습니다 (최소 50자 필요).")
+        return None
 
     if " - " in title:
         title = title.split(" - ")[0].strip()
 
-    response = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[
-            {
-                "role": "system",
-                "content": SYSTEM_PROMPT
-            },
-            {
-                "role": "user",
-                "content": USER_PROMPT_TEMPLATE.format(title=title, content=content)
-            }
-        ],
-        temperature=TEMPERATURE
-    )
-    return response.choices[0].message.content.strip()
+    try:
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {
+                    "role": "system",
+                    "content": SYSTEM_PROMPT
+                },
+                {
+                    "role": "user",
+                    "content": USER_PROMPT_TEMPLATE.format(title=title, content=content)
+                }
+            ],
+            temperature=TEMPERATURE
+        )
+
+        # Validate response has choices
+        if not response.choices or len(response.choices) == 0:
+            print("      ❌ OpenAI API 응답이 비어있습니다.")
+            return None
+
+        return response.choices[0].message.content.strip()
+
+    except RateLimitError as e:
+        print(f"      ❌ OpenAI API 요청 한도 초과: {e}")
+        print("         잠시 후 다시 시도해주세요.")
+        return None
+    except APIConnectionError as e:
+        print(f"      ❌ OpenAI API 연결 실패: {e}")
+        print("         네트워크 연결을 확인해주세요.")
+        return None
+    except APIError as e:
+        print(f"      ❌ OpenAI API 오류: {e}")
+        return None
+    except Exception as e:
+        print(f"      ❌ 예상치 못한 오류 발생: {e}")
+        return None
 
 
 # Summarize the articles in the DataFrame and return a combined string
-def summarize_articles(df: pd.DataFrame) -> str:
+def summarize_articles(df: pd.DataFrame) -> Optional[str]:
     if df.empty:
         print("⚠️ 요약할 기사가 없습니다.")
-        return ""
+        return None
     
     all_summaries = []
     total = len(df)
@@ -103,12 +128,23 @@ def summarize_articles(df: pd.DataFrame) -> str:
     for idx, row in df.iterrows():
         print(f"  📝 요약 중... ({idx + 1}/{total}) {row.get('title', 'N/A')[:40]}...")
         summary = summarize_article(row["title"], row["content"])
+
+        # Handle API errors (summarize_article returns None on error)
+        if summary is None:
+            print(f"      ⚠️ 해당 기사 요약 실패. 건너뜁니다.")
+            continue
+
         all_summaries.append({
             "index": idx + 1,
             "title": row.get("title", "N/A"),
             "summary": summary
         })
     
+    # Check if any summaries were successfully generated
+    if not all_summaries:
+        print("\n❌ 모든 기사 요약이 실패했습니다. 프로세스를 종료합니다.")
+        return None
+
     # 2단계: 전체 결과 출력
     print("\n" + "="*60)
     print("📋 전체 요약 결과")
@@ -124,20 +160,44 @@ def summarize_articles(df: pd.DataFrame) -> str:
     print("="*60)
     print("1개 이상의 포함할 요약 번호를 띄어쓰기로 구분하여 입력하세요. (예: 1 3 5)")
     print("="*60)
-    
-    selection = input("선택: ").strip()
-    selected_indices = {int(x) for x in selection.split()}
-    
+
+    while True:
+        try:
+            selection = input("선택: ").strip()
+
+            if not selection:
+                print("❌ 입력이 비어있습니다. 다시 입력해주세요.")
+                continue
+
+            selected_indices = {int(x) for x in selection.split()}
+
+            # Validate that all indices are within valid range
+            invalid_indices = [idx for idx in selected_indices if idx < 1 or idx > len(all_summaries)]
+            if invalid_indices:
+                print(f"❌ 잘못된 번호가 포함되어 있습니다: {invalid_indices}")
+                print(f"   유효한 범위: 1 ~ {len(all_summaries)}")
+                continue
+
+            if not selected_indices:
+                print("❌ 최소 1개 이상의 요약을 선택해야 합니다.")
+                continue
+
+            break
+
+        except ValueError:
+            print("❌ 잘못된 입력입니다. 숫자만 입력해주세요. (예: 1 3 5)")
+            continue
+
     # 4단계: 선택된 것만 결합
     results = [
-        item['summary'] 
-        for item in all_summaries 
+        item['summary']
+        for item in all_summaries
         if item['index'] in selected_indices
     ]
-    
+
     combined = "\n\n".join(results)
     print(f"\n✅ {len(results)}개 요약이 선택되었습니다!")
-    
+
     return combined
 
 

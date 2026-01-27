@@ -1,4 +1,5 @@
 import re
+from pathlib import Path
 from pptx import Presentation
 from pptx.util import Pt
 from pptx.dml.color import RGBColor
@@ -130,8 +131,13 @@ def set_textbox_from_summarizedtxt(prs: Presentation, text: str,
 # Main Function
 # ============================================================
 # Create Report PPTX
-def create_report(pptx_in: str, pptx_out: str, number: str, date: str, 
+def create_report(pptx_in: str, pptx_out: str, number: str, date: str,
                   text1: str, text2: str):
+
+    # Check if template file exists
+    if not Path(pptx_in).exists():
+        raise FileNotFoundError(f"❌ PPT 템플릿 파일을 찾을 수 없습니다: {pptx_in}")
+
     prs = Presentation(pptx_in)
     
     # Step 1: Enter number of the report and date.

@@ -65,7 +65,7 @@ SEARCH_CATEGORIES = [
 
 # Calculate total number of companies from SEARCH_CATEGORIES
 TOTAL_COMPANIES = sum(len(cat["queries"]) for cat in SEARCH_CATEGORIES)
-TOTAL_COMPANIES = 3 # for testing, limit to 3 companies (Use only when to debug)
+# TOTAL_COMPANIES = 3 # for testing, limit to 3 companies (Use only when to debug)
 
 @dataclass
 class CrawlerConfig:
@@ -145,22 +145,58 @@ def select_articles(df: pd.DataFrame, num_select: int = 4) -> pd.DataFrame:
     display_df = df[["category", "company", "score", "title"]].copy()
     display_df.index = range(1, len(df) + 1)
     print(display_df.to_string())
-    
+
     print(f"\n[SELECT] 선택할 기사 번호 {num_select}개를 입력하세요 (공백으로 구분, 예: 5 6 3 15):")
-    user_input = input(">>> ").strip()
-    
-    selected_indices = [int(x) for x in user_input.split()]
+
+    while True:
+        try:
+            user_input = input(">>> ").strip()
+
+            if not user_input:
+                print("❌ 입력이 비어있습니다. 다시 입력해주세요.")
+                continue
+
+            selected_indices = [int(x) for x in user_input.split()]
+
+            # Validate that all indices are within valid range
+            invalid_indices = [idx for idx in selected_indices if idx < 1 or idx > len(df)]
+            if invalid_indices:
+                print(f"❌ 잘못된 번호가 포함되어 있습니다: {invalid_indices}")
+                print(f"   유효한 범위: 1 ~ {len(df)}")
+                continue
+
+            if not selected_indices:
+                print("❌ 최소 1개 이상의 기사를 선택해야 합니다.")
+                continue
+
+            # Validate number of selections
+            if len(selected_indices) != num_select:
+                print(f"❌ {num_select}개를 선택해야 하지만 {len(selected_indices)}개가 선택되었습니다.")
+                response = input(f"   계속 진행하시겠습니까? (y/n): ").strip().lower()
+                if response != 'y':
+                    continue
+
+            break
+
+        except ValueError:
+            print("❌ 잘못된 입력입니다. 숫자만 입력해주세요. (예: 1 3 5)")
+            continue
+
     selected_df = df.iloc[[i - 1 for i in selected_indices]].reset_index(drop=True)
-    
+
     print(f"\n✅ 선택 완료!")
 
-    selected_df.to_excel(
-        SELECTED_NEWS_FILE,
-        index=False,
-        engine='openpyxl'
-    )
-    print(f"📁 Excel 저장 완료: {SELECTED_NEWS_FILE}")
-        
+    try:
+        selected_df.to_excel(
+            SELECTED_NEWS_FILE,
+            index=False,
+            engine='openpyxl'
+        )
+        print(f"📁 Excel 저장 완료: {SELECTED_NEWS_FILE}")
+    except Exception as e:
+        print(f"❌ Excel 파일 저장 실패: {e}")
+        print("   선택한 데이터는 메모리에 유지되지만 파일로 저장되지 않았습니다.")
+
     return selected_df
 
 
