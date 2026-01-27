@@ -4,8 +4,10 @@
 - Automates web news crawling
 - Automatically summarizes news articles and AI Lab news
 - Generates PowerPoint (PPTX) slides with customized styling
-<br>
+
+
 ![Workflow](data/diagram_new.png)
+
 
 ## ⚙️ Installation
 
@@ -41,6 +43,7 @@
    리포트 발행 날짜를 입력하세요 (예: 2025년 12월 26일): 2025년 12월 30일
    선택할 뉴스 개수를 입력하세요 (기본값: 4): 3
    선택할 기사 번호를 입력하세요 (공백으로 구분, 예: 5 6 3 15): 7 2 10 8
+   1개 이상의 포함할 요약 번호를 띄어쓰기로 구분하여 입력하세요. (예: 1 3 5): 2 1
 ```
 
 4. `output.pptx` will be generated
