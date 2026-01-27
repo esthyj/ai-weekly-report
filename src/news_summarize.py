@@ -1,37 +1,23 @@
-import os
-import httpx
 import pandas as pd
-from openai import OpenAI
-from dotenv import load_dotenv
+from .openai_client import get_shared_client
+from .config import SELECTED_NEWS_FILE
 
+# Get shared OpenAI client instance
+client = get_shared_client()
 
-# Key Settings
-load_dotenv()
-http_client = httpx.Client(verify=False)
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), http_client=http_client)
+# ============================================================
+# Configuration Constants
+# ============================================================
 
+MODEL_NAME = "gpt-5.1"
+TEMPERATURE = 0.3
 
-# Summarize Article Content
-def summarize_article(title: str, content: str) -> str:
-    if not content or len(content.strip()) < 50:
-        return "Not enough content to summarize."
+SYSTEM_PROMPT = (
+    "You are a professional AI analyst specializing in Insurance and AI services. "
+    "You write concise, structured, and business-oriented summaries in Korean."
+)
 
-    if " - " in title:
-        title = title.split(" - ")[0].strip()
-        
-    response = client.chat.completions.create(
-        model="gpt-5.1",
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a professional AI analyst specializing in Insurance and AI services. "
-                    "You write concise, structured, and business-oriented summaries in Korean."
-                )
-            },
-            {
-                "role": "user",
-                "content": f"""
+USER_PROMPT_TEMPLATE = """
     <task>
     Analyze the following news article and produce a structured Korean output.
 
@@ -39,7 +25,7 @@ def summarize_article(title: str, content: str) -> str:
     1. Generate [Summary1], [Summary2], ... [SummaryN] based on the article's content depth.
       - Do NOT attempt to summarize the entire article.
       - Focus on high-impact facts, decisions, or implications.
-      - Default to 2 summaries, extend to 3 only if essential. 
+      - Default to 2 summaries, extend to 3 only if essential.
     2. Write ONE insight sentence for an insurance company use case.
     3. Be concise and factual. Do NOT add information not mentioned or logically implied in the article.
     4. Use professional Korean business tone.
@@ -74,9 +60,32 @@ def summarize_article(title: str, content: str) -> str:
     <article>
     {content}
     """
+
+# ============================================================
+# Functions
+# ============================================================
+
+# Summarize Article Content
+def summarize_article(title: str, content: str) -> str:
+    if not content or len(content.strip()) < 50:
+        return "Not enough content to summarize."
+
+    if " - " in title:
+        title = title.split(" - ")[0].strip()
+
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT
+            },
+            {
+                "role": "user",
+                "content": USER_PROMPT_TEMPLATE.format(title=title, content=content)
             }
         ],
-        temperature=0.3
+        temperature=TEMPERATURE
     )
     return response.choices[0].message.content.strip()
 
@@ -135,7 +144,7 @@ def summarize_articles(df: pd.DataFrame) -> str:
 # Test (If needed)
 if __name__ == "__main__":
 
-    df = pd.read_excel("../output/selected_news.xlsx", engine='openpyxl')
+    df = pd.read_excel(SELECTED_NEWS_FILE, engine='openpyxl')
     if not df.empty:
         result = summarize_articles(df)
         print("\n" + "="*60)

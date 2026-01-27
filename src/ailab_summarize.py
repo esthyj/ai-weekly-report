@@ -1,35 +1,22 @@
-from openai import OpenAI
-import httpx
-from dotenv import load_dotenv
-import os
+from .openai_client import get_shared_client
+from .config import AILAB_CONTENT_FILE
 
-# API Key Settings
-http_client = httpx.Client(verify=False)
+# Get shared OpenAI client instance
+client = get_shared_client()
 
-load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), http_client=http_client)
+# ============================================================
+# Configuration Constants
+# ============================================================
 
-# Return AI Lab news summarization results
-def ailab_summarized():
-    
-    # Ailab Contents are saved in txt file
-    with open("data/ailab_content.txt", "r", encoding="utf-8") as f:
-        content = f.read()
+MODEL_NAME = "gpt-5.1"
+TEMPERATURE = 0.3
 
-    # OpenAI API call
-    response = client.chat.completions.create(
-        model="gpt-5.1",
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a professional AI analyst specializing in Insurance and AI services. "
-                    "You write concise, structured, and business-oriented summaries in Korean."
-                )
-            },
-            {
-                "role": "user",
-                "content": f"""
+SYSTEM_PROMPT = (
+    "You are a professional AI analyst specializing in Insurance and AI services. "
+    "You write concise, structured, and business-oriented summaries in Korean."
+)
+
+USER_PROMPT_TEMPLATE = """
     <task>
     Analyze the following news article and produce a structured Korean output.
 
@@ -54,9 +41,32 @@ def ailab_summarized():
     <article>
     {content}
     """
+
+# ============================================================
+# Functions
+# ============================================================
+
+# Return AI Lab news summarization results
+def ailab_summarized():
+    
+    # Ailab Contents are saved in txt file
+    with open(AILAB_CONTENT_FILE, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # OpenAI API call
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT
+            },
+            {
+                "role": "user",
+                "content": USER_PROMPT_TEMPLATE.format(content=content)
             }
         ],
-        temperature=0.3
+        temperature=TEMPERATURE
     )
     
     result = response.choices[0].message.content.strip()

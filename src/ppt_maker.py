@@ -2,6 +2,7 @@ import re
 from pptx import Presentation
 from pptx.util import Pt
 from pptx.dml.color import RGBColor
+from .config import PPT_TEMPLATE_FILE
 
 # ============================================================
 # Settings
@@ -164,13 +165,13 @@ def list_all_shapes(pptx_path: str):
 # Test (If needed)
 if __name__ == "__main__":
 
-    list_all_shapes("../templates/AIWeeklyReport_format.pptx")
+    list_all_shapes(str(PPT_TEMPLATE_FILE))
 
     test_text1 = '''[Title] 테스트 제목 [Summary1] 요약1 내용 [Summary2] 요약2 내용 [Summary3] 요약3 내용 [Insight] 인사이트 내용'''
     test_text2 = '''[Title] AI Lab 테스트 [Summary1] AI Lab 요약1 [Summary2] AI Lab 요약2 [Insight] AI Lab 인사이트'''
-    
+
     create_report(
-        pptx_in="../templates/AIWeeklyReport_format.pptx",
+        pptx_in=str(PPT_TEMPLATE_FILE),
         pptx_out="test_output.pptx",
         number="테스트",
         date="2025년 1월 1일",

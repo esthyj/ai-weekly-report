@@ -2,6 +2,7 @@ from src.news_crawler import get_selected_news
 from src.news_summarize import summarize_articles
 from src.ppt_maker import create_report
 from src.ailab_summarize import ailab_summarized
+from src.config import PPT_TEMPLATE_FILE, OUTPUT_DIR
 from datetime import datetime
 
 def main():
@@ -39,15 +40,15 @@ def main():
     
     # 4단계: PPT 생성
     print("\n" + "="*60)
-    print("📊 단계: PPT 보고서 생성")
+    print("📊 4단계: PPT 보고서 생성")
     print("="*60)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_filename = f"output/AIWeeklyReport_{timestamp}.pptx"
+    output_filename = OUTPUT_DIR / f"AIWeeklyReport_{timestamp}.pptx"
 
     create_report(
-        pptx_in="templates/AIWeeklyReport_format.pptx",
-        pptx_out=output_filename,
+        pptx_in=str(PPT_TEMPLATE_FILE),
+        pptx_out=str(output_filename),
         number=number,
         date=date,
         text1=summarized_text,
@@ -56,7 +57,7 @@ def main():
 
     print("\n" + "="*60)
     print("✅ 모든 프로세스 완료!")
-    print("output/output.pptx 파일 생성까지 최대 5분정도 소요될 수 있습니다.")
+    print(f"{output_filename} 파일 생성까지 최대 5분정도 소요될 수 있습니다.")
     print("조금만 기다려주세요... 감사합니다!")
     print("="*60)
 

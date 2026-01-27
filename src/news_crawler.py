@@ -1,5 +1,6 @@
 import ssl
 import urllib3
+import logging
 from dataclasses import dataclass
 from typing import Optional
 
@@ -8,6 +9,11 @@ import pandas as pd
 import requests
 from googlenewsdecoder import gnewsdecoder
 from newspaper import Article, Config
+from .config import SELECTED_NEWS_FILE
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # ============================================================
 # Settings 
@@ -59,6 +65,7 @@ SEARCH_CATEGORIES = [
 
 # Calculate total number of companies from SEARCH_CATEGORIES
 TOTAL_COMPANIES = sum(len(cat["queries"]) for cat in SEARCH_CATEGORIES)
+TOTAL_COMPANIES = 3 # for testing, limit to 3 companies (Use only when to debug)
 
 @dataclass
 class CrawlerConfig:
@@ -106,7 +113,8 @@ def decode_url(link: str) -> str:
     try:
         result = gnewsdecoder(link)
         return result.get('decoded_url', link) if isinstance(result, dict) else result
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Failed to decode URL {link}: {e}")
         return link
 
 # Fetch Article Content
@@ -117,7 +125,8 @@ def fetch_article(url: str, config: Config) -> Optional[str]:
         article.parse()
         content = article.text.strip()
         return content if len(content) >= CrawlerConfig.min_content_length else None
-    except Exception:
+    except Exception as e:
+        logger.debug(f"Failed to fetch article {url}: {e}")
         return None
 
 
@@ -145,19 +154,18 @@ def select_articles(df: pd.DataFrame, num_select: int = 4) -> pd.DataFrame:
     
     print(f"\n✅ 선택 완료!")
 
-    filename = f"output/selected_news.xlsx"
     selected_df.to_excel(
-        filename,
+        SELECTED_NEWS_FILE,
         index=False,
-        engine='openpyxl'  
+        engine='openpyxl'
     )
-    print(f"📁 Excel 저장 완료: {filename}")
+    print(f"📁 Excel 저장 완료: {SELECTED_NEWS_FILE}")
         
     return selected_df
 
 
 # ============================================================
-# Main Cralwer
+# Main Crawler
 # ============================================================
 def crawl_news(cfg: CrawlerConfig = CrawlerConfig()) -> pd.DataFrame:
     setup_ssl()
@@ -199,7 +207,7 @@ def crawl_news(cfg: CrawlerConfig = CrawlerConfig()) -> pd.DataFrame:
                 if url in seen_urls:
                     continue
                 
-                #Fech Article Content
+                # Fetch Article Content
                 content = fetch_article(url, article_config)
                 if not content:
                     continue
