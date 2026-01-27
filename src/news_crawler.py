@@ -10,7 +10,7 @@ from googlenewsdecoder import gnewsdecoder
 from newspaper import Article, Config
 
 # ============================================================
-# Settings
+# Settings 
 # ============================================================
 
 # keywords that, if present in the title, will exclude the article
@@ -32,7 +32,7 @@ SEARCH_CATEGORIES = [
         "category": "보험사",
         "queries": [
             "삼성화재", "현대해상", "DB손해보험", "KB손해보험", "메리츠화재", "토스인슈어런스",
-            "삼성생명", "교보생명", "한화생명", "신한라이프", "NH농협생명", "KB라이프"
+            "삼성생명", "교보생명", "한화생명", "신한라이프", "NH농협생명", "KB라이프", "NH농협생명"
         ]
     },
     {
@@ -51,6 +51,10 @@ SEARCH_CATEGORIES = [
         "category": "증권사",
         "queries": ["NH투자증권", "미래에셋증권", "한국투자증권", "삼성증권", "신한투자증권", "KB증권", "키움증권", "토스증권"]
     },
+    {
+        "category": "기타",
+        "queries": ["금융", "인공지능"]
+    },
 ]
 
 # Calculate total number of companies from SEARCH_CATEGORIES
@@ -64,7 +68,6 @@ class CrawlerConfig:
     min_content_length: int = 150 # minimum length of article content
     request_timeout: int = 15 # seconds
     user_agent: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-
 
 # ============================================================
 # SSL Settings
@@ -146,7 +149,7 @@ def select_articles(df: pd.DataFrame, num_select: int = 4) -> pd.DataFrame:
     selected_df.to_excel(
         filename,
         index=False,
-        engine='openpyxl'  # openpyxl은 기본적으로 UTF-8 지원
+        engine='openpyxl'  
     )
     print(f"📁 Excel 저장 완료: {filename}")
         
