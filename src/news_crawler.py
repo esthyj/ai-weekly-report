@@ -59,7 +59,7 @@ SEARCH_CATEGORIES = [
     },
     {
         "category": "기타",
-        "queries": ["금융", "인공지능"]
+        "queries": ["금융", "인공지능", "기후", "자율주행", "보험"]
     },
 ]
 
