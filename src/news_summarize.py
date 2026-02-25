@@ -11,7 +11,7 @@ client = get_shared_client()
 # Configuration Constants
 # ============================================================
 
-MODEL_NAME = "gpt-5.1"
+MODEL_NAME = "gpt-5.2"
 TEMPERATURE = 0.3
 
 SYSTEM_PROMPT = (
