@@ -2,16 +2,17 @@ import pandas as pd
 from typing import Optional
 from .openai_client import get_shared_client
 from .config import SELECTED_NEWS_FILE
-from openai import APIError, RateLimitError, APIConnectionError
+import anthropic
 
-# Get shared OpenAI client instance
+# Get shared Anthropic client instance
 client = get_shared_client()
 
 # ============================================================
 # Configuration Constants
 # ============================================================
 
-MODEL_NAME = "gpt-5.2"
+MODEL_NAME = "claude-sonnet-4-6"
+MAX_TOKENS = 2048
 TEMPERATURE = 0.3
 
 SYSTEM_PROMPT = (
@@ -77,38 +78,35 @@ def summarize_article(title: str, content: str) -> Optional[str]:
         title = title.split(" - ")[0].strip()
 
     try:
-        response = client.chat.completions.create(
+        response = client.messages.create(
             model=MODEL_NAME,
+            max_tokens=MAX_TOKENS,
+            system=SYSTEM_PROMPT,
             messages=[
-                {
-                    "role": "system",
-                    "content": SYSTEM_PROMPT
-                },
                 {
                     "role": "user",
                     "content": USER_PROMPT_TEMPLATE.format(title=title, content=content)
                 }
-            ],
-            temperature=TEMPERATURE
+            ]
         )
 
-        # Validate response has choices
-        if not response.choices or len(response.choices) == 0:
-            print("      ❌ OpenAI API 응답이 비어있습니다.")
+        # Validate response has content
+        if not response.content or len(response.content) == 0:
+            print("      ❌ Claude API 응답이 비어있습니다.")
             return None
 
-        return response.choices[0].message.content.strip()
+        return response.content[0].text.strip()
 
-    except RateLimitError as e:
-        print(f"      ❌ OpenAI API 요청 한도 초과: {e}")
+    except anthropic.RateLimitError as e:
+        print(f"      ❌ Claude API 요청 한도 초과: {e}")
         print("         잠시 후 다시 시도해주세요.")
         return None
-    except APIConnectionError as e:
-        print(f"      ❌ OpenAI API 연결 실패: {e}")
+    except anthropic.APIConnectionError as e:
+        print(f"      ❌ Claude API 연결 실패: {e}")
         print("         네트워크 연결을 확인해주세요.")
         return None
-    except APIError as e:
-        print(f"      ❌ OpenAI API 오류: {e}")
+    except anthropic.APIError as e:
+        print(f"      ❌ Claude API 오류: {e}")
         return None
     except Exception as e:
         print(f"      ❌ 예상치 못한 오류 발생: {e}")

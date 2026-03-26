@@ -1,18 +1,18 @@
 """
-Shared OpenAI client configuration and initialization.
+Shared Anthropic client configuration and initialization.
 """
 import os
 import httpx
-from openai import OpenAI
+import anthropic
 from dotenv import load_dotenv
 
 
-def get_openai_client() -> OpenAI:
+def get_claude_client() -> anthropic.Anthropic:
     """
-    Initialize and return an OpenAI client with configured settings.
+    Initialize and return an Anthropic client with configured settings.
 
     Returns:
-        OpenAI: Configured OpenAI client instance
+        anthropic.Anthropic: Configured Anthropic client instance
     """
     load_dotenv()
 
@@ -21,9 +21,9 @@ def get_openai_client() -> OpenAI:
     # Consider enabling it in production environments
     http_client = httpx.Client(verify=False)
 
-    # Initialize OpenAI client
-    client = OpenAI(
-        api_key=os.getenv("OPENAI_API_KEY"),
+    # Initialize Anthropic client
+    client = anthropic.Anthropic(
+        api_key=os.getenv("ANTHROPIC_API_KEY"),
         http_client=http_client
     )
 
@@ -34,14 +34,14 @@ def get_openai_client() -> OpenAI:
 _client_instance = None
 
 
-def get_shared_client() -> OpenAI:
+def get_shared_client() -> anthropic.Anthropic:
     """
-    Get or create a shared OpenAI client instance.
+    Get or create a shared Anthropic client instance.
 
     Returns:
-        OpenAI: Shared OpenAI client instance
+        anthropic.Anthropic: Shared Anthropic client instance
     """
     global _client_instance
     if _client_instance is None:
-        _client_instance = get_openai_client()
+        _client_instance = get_claude_client()
     return _client_instance

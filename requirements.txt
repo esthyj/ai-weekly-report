@@ -2,7 +2,7 @@ feedparser==6.0.12
 googlenewsdecoder==0.1.7
 httpx==0.28.1
 newspaper3k==0.2.8
-openai==2.14.0
+anthropic>=0.40.0
 pandas==2.3.3
 python-dotenv==1.2.1
 python_pptx==1.0.2
