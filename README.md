@@ -56,7 +56,7 @@ ai-weekly-report/
 │   ├── ailab_content.txt      # AI Lab content input file
 │   └── diagram_new.png        # Workflow diagram image
 ├── notebooks/
-│   └── check_env.ipynb        # Environment check notebook
+│   └── check_env.ipynb        # Environment checks
 ├── output/                    # Generated output files
 │   └── *.pptx                 # Generated PowerPoint reports
 ├── src/
