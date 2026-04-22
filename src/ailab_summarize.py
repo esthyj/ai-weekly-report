@@ -29,7 +29,7 @@ USER_PROMPT_TEMPLATE = """
     3. Use professional Korean business tone.
     4. For [Title], Use noun-only endings
     5. For [Summary1], [Summary2], end sentences with noun-ending forms like "~임", "~함", "~있음" instead of formal endings like "~입니다", "~합니다", "~있습니다"
-    6. Please write [Summary1] and [Summary2] each within 150 characters
+    6. Please write [Summary1] and [Summary2] each within 150 characters.
 
     <output_format>
     [Title]
