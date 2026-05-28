@@ -2,11 +2,16 @@
 __pycache__/
 *.pyc
 .env
+venv/
+.venv/
 
 # Output
 output/*.pptx
 output/*.pdf
 output/*.xlsx
+
+# Test artifacts (e.g. from `python -m src.ppt_maker`)
+test_output.pptx
 
 # IDE
 .vscode/

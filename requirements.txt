@@ -1,3 +1,4 @@
+# Install inside a virtual environment — see README.md "Installation"
 feedparser==6.0.12
 googlenewsdecoder==0.1.7
 httpx==0.28.1
@@ -8,3 +9,6 @@ python-dotenv==1.2.1
 python_pptx==1.0.2
 Requests==2.32.5
 urllib3==2.6.2
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+openpyxl==3.1.5

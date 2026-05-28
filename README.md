@@ -17,15 +17,23 @@
    cd ai-weekly-report
 ```
 
-2. Install dependencies
+2. Set up a virtual environment and install dependencies
 ```bash
+   # Create and activate a virtual environment
+   python -m venv venv
+   source venv/bin/activate          # Windows: venv\Scripts\activate
+
+   # Install dependencies
    pip install -r requirements.txt
+
+   # If you see "lxml.html.clean ImportError" (newspaper3k + lxml>=5 compat issue):
+   pip install lxml_html_clean
 ```
 
 3. Set up environment variables
 ```bash
    # Create .env file
-   OPENAI_API_KEY=your_api_key_here
+   ANTHROPIC_API_KEY=your_api_key_here
 ```
 
 ## 🚀 Usage
@@ -48,6 +56,19 @@
 
 4. `output.pptx` will be generated
 
+## 🌐 Web Demo (FastAPI)
+
+브라우저에서 파이프라인을 단계별로 체험할 수 있습니다 (로컬 전용).
+
+```bash
+uvicorn app:app --reload --port 8000
+# → http://localhost:8000
+```
+
+- 호수/날짜 입력 → 실제 크롤링 진행상황을 SSE 로그로 실시간 표시 → 기사 체크 → AI 요약 → 검토 (수락/다시 요약/다시 선택) → PPT 다운로드.
+- 서버는 운영자의 `ANTHROPIC_API_KEY`를 사용합니다 (없으면 503).
+- 세션은 in-memory dict로 30분간 유지됩니다.
+
 ## 📁 File Structure
 
 ```
@@ -62,6 +83,8 @@ ai-weekly-report/
 ├── src/
 │   ├── __init__.py
 │   ├── ailab_summarize.py     # AI Lab content summarizer
+│   ├── config.py              # Project paths + directory checks
+│   ├── llm_client.py          # Shared Anthropic client + call_llm helper
 │   ├── news_crawler.py        # Web news crawler
 │   ├── news_summarize.py      # News article summarizer
 │   └── ppt_maker.py           # PowerPoint generator

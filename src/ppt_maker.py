@@ -10,6 +10,13 @@ from .config import PPT_TEMPLATE_FILE
 # ============================================================
 TAG_RE = re.compile(r'\[(Title|Summary\d*|Insight)\]\s*', re.IGNORECASE)
 
+# 인라인 서식 마크업 — 웹 final-review 에디터에서 직렬화한 형태
+#   {b}…{/b}  {i}…{/i}  {u}…{/u}  {size=14}…{/size}  {color=#c00000}…{/color}
+# 열림 태그는 value 포함, 닫힘 태그는 value 없음을 모두 매칭.
+INLINE_RE = re.compile(
+    r"\{(/?)(b|i|u|size(?:=\d+)?|color(?:=#[0-9a-fA-F]{6})?)\}"
+)
+
 # 태그별 스타일 설정 (prefix, font_name, font_size, underline, split_lines)
 TAG_STYLES = {
     "title":   ("",   "한화고딕 B",  12, False, False),
@@ -17,6 +24,12 @@ TAG_STYLES = {
     "insight": ("➔ ", "한화고딕 B",  12, True,  True),
 }
 DEFAULT_STYLE = ("", "한화고딕 EL", 12, False, True)
+
+# Slide 0 shape indices — matches templates/AIWeeklyReport_format.pptx structure.
+# If the template is restructured, re-check with list_all_shapes() and update here.
+META_SHAPE_INDEX = 4    # 호수 + 날짜
+NEWS_SHAPE_INDEX = 13   # 뉴스 요약 본문
+AILAB_SHAPE_INDEX = 14  # AI Lab 요약 본문
 
 
 # ============================================================
@@ -66,13 +79,90 @@ def add_styled_run(paragraph, text, font_name, font_size, underline=False, color
         r.font.color.rgb = color
 
 
+# Parse inline markup into a list of (text_segment, overrides) pairs.
+# overrides may contain keys: bold, italic, underline, size (int), color ('#rrggbb').
+# 마크업이 전혀 없으면 [(text, {})] 한 개 — 기존 평문 입력과 결과 동일.
+def parse_inline(text: str):
+    segments = []
+    stack = []  # [("b", True) | ("i", True) | ("u", True) | ("size", 14) | ("color", "#c00000")]
+
+    def current_overrides():
+        ov = {}
+        for typ, val in stack:
+            if typ == "b":
+                ov["bold"] = True
+            elif typ == "i":
+                ov["italic"] = True
+            elif typ == "u":
+                ov["underline"] = True
+            elif typ == "size":
+                ov["size"] = val
+            elif typ == "color":
+                ov["color"] = val
+        return ov
+
+    pos = 0
+    for m in INLINE_RE.finditer(text):
+        if m.start() > pos:
+            segments.append((text[pos:m.start()], current_overrides()))
+
+        closing = m.group(1) == "/"
+        body = m.group(2)
+
+        if body in ("b", "i", "u"):
+            typ, val = body, True
+        elif body == "size":  # 닫힘 태그: 가장 최근 size를 닫음
+            typ, val = "size", None
+        elif body.startswith("size="):
+            typ, val = "size", int(body[len("size="):])
+        elif body == "color":
+            typ, val = "color", None
+        elif body.startswith("color=#"):
+            typ, val = "color", body[len("color="):]
+        else:
+            typ, val = None, None  # 정규식상 도달 불가
+
+        if closing:
+            # 같은 타입 중 가장 최근 항목을 제거 (관대 파싱)
+            for i in range(len(stack) - 1, -1, -1):
+                if stack[i][0] == typ:
+                    stack.pop(i)
+                    break
+        else:
+            stack.append((typ, val))
+
+        pos = m.end()
+
+    if pos < len(text):
+        segments.append((text[pos:], current_overrides()))
+
+    return segments
+
+
+# Add one run with optional per-run style overrides on top of tag base style.
+def add_run_with_overrides(paragraph, text, font_name, font_size, base_underline=False, overrides=None):
+    if not text:
+        return
+    r = paragraph.add_run()
+    r.text = text
+    r.font.name = font_name
+    ov = overrides or {}
+    r.font.size = Pt(ov.get("size", font_size))
+    r.font.underline = ov.get("underline", base_underline)
+    r.font.italic = ov.get("italic", False)
+    if ov.get("bold"):
+        r.font.bold = True
+    if "color" in ov:
+        r.font.color.rgb = RGBColor.from_string(ov["color"].lstrip("#"))
+
+
 # ============================================================
 # Write PPT
 # ============================================================
 
 # Add report number and date
-def set_number_and_date(prs: Presentation, number: str, date: str, 
-                        shape_index: int = 4, slide_index: int = 0):
+def set_number_and_date(prs: Presentation, number: str, date: str,
+                        shape_index: int = META_SHAPE_INDEX, slide_index: int = 0):
     """숫자와 날짜를 특정 TextBox에 입력"""
     _, shape = find_shape_by_index(prs, shape_index, slide_index)
     
@@ -91,8 +181,8 @@ def set_number_and_date(prs: Presentation, number: str, date: str,
 
 
 # Insert summarized text structured with tag-specific styles
-def set_textbox_from_summarizedtxt(prs: Presentation, text: str, 
-                                    shape_index: int = 13, slide_index: int = 0):
+def set_textbox_from_summarizedtxt(prs: Presentation, text: str,
+                                    shape_index: int = NEWS_SHAPE_INDEX, slide_index: int = 0):
     # Find specific index shape
     _, shape = find_shape_by_index(prs, shape_index, slide_index)
     
@@ -121,7 +211,14 @@ def set_textbox_from_summarizedtxt(prs: Presentation, text: str,
         for line in filter(None, lines):
             p = tf.paragraphs[0] if not first_para_used and not tf.paragraphs[0].text else tf.add_paragraph()
             first_para_used = True
-            add_styled_run(p, f"{prefix}{line}" if prefix else line, font_name, font_size, underline)
+
+            # prefix(•, ➔)는 인라인 서식과 무관하게 항상 태그 기본 스타일로 출력
+            if prefix:
+                add_styled_run(p, prefix, font_name, font_size, underline)
+
+            # 본문은 인라인 마크업을 파싱해 run 분할 — 마크업 없으면 한 개 run
+            for seg, overrides in parse_inline(line):
+                add_run_with_overrides(p, seg, font_name, font_size, underline, overrides)
 
         if tag == "insight":
             add_styled_run(tf.add_paragraph(), " ", "한화고딕 EL", 9)
@@ -141,13 +238,13 @@ def create_report(pptx_in: str, pptx_out: str, number: str, date: str,
     prs = Presentation(pptx_in)
     
     # Step 1: Enter number of the report and date.
-    set_number_and_date(prs, number, date, shape_index=4, slide_index=0)
-    
+    set_number_and_date(prs, number, date, shape_index=META_SHAPE_INDEX, slide_index=0)
+
     # Step 2: Enter first summary text
-    set_textbox_from_summarizedtxt(prs, text1, shape_index=13, slide_index=0)
-    
+    set_textbox_from_summarizedtxt(prs, text1, shape_index=NEWS_SHAPE_INDEX, slide_index=0)
+
     # Step 3: Enter second summary text
-    set_textbox_from_summarizedtxt(prs, text2, shape_index=14, slide_index=0)
+    set_textbox_from_summarizedtxt(prs, text2, shape_index=AILAB_SHAPE_INDEX, slide_index=0)
     
     # Save
     prs.save(pptx_out)

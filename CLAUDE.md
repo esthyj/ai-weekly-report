@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is an **AI-powered weekly news report generator** for a Korean insurance company. It automates the process of crawling financial news about major companies (banks, insurers, tech firms, securities), summarizing them with OpenAI GPT, and generating a PowerPoint presentation with a corporate template.
+This is an **AI-powered weekly news report generator** for a Korean insurance company. It automates the process of crawling financial news about major companies (banks, insurers, tech firms, securities), summarizing them with the Anthropic Claude API, and generating a PowerPoint presentation with a corporate template.
 
-**Key Workflow**: News Crawling → Human Selection → AI Summarization → Human Selection → PPT Generation
+**Key Workflow** (sequential pipeline in `main.py`): Metadata → News Crawling → Human Selection → AI Summarization → Human Selection (which summaries) → Review (accept / re-summarize / re-select) → AI Lab Summary → PPT Generation
 
-**Human-in-the-Loop Design**: Users manually select which crawled articles to summarize (Step 1) and which summaries to include in the final report (Step 2). This is intentional for quality control.
+**Human-in-the-Loop Design**: Users select which crawled articles to summarize, which summaries to include, and finally review the combined result with the option to loop back (re-summarize the same articles, or go back to article re-selection — without re-crawling).
 
 ## Running the Application
 
@@ -18,61 +18,61 @@ python main.py
 ```
 
 The script runs interactively with Korean prompts:
-1. Enter report number (발행 호수)
-2. Enter report date (발행 날짜)
-3. Enter number of news articles to select
-4. Select articles by index numbers
-5. Select summaries to include in final report
+1. Enter report number (발행 호수) and date (발행 날짜)
+2. After crawling, select articles by index numbers (choose as many as you want)
+3. Pick which generated summaries to include in the combined output
+4. Review combined summary — accept (`a`/Enter), re-summarize (`r`), or re-select articles (`s`)
+5. AI Lab summary is generated and the final PPT is written
 
 ### Prerequisites
-- `.env` file with `OPENAI_API_KEY=your_key_here`
-- `data/ailab_content.txt` must exist with AI Lab content
+- `.env` file with `ANTHROPIC_API_KEY=your_key_here`
 - `templates/AIWeeklyReport_format.pptx` must exist (corporate template)
+- AI Lab content is provided interactively by the user (CLI multi-line prompt or web textarea) — no file needed
 
 ### Output
 Generated PPTX files are saved to `output/AIWeeklyReport_{timestamp}.pptx`
 
 ## Architecture
 
-### Pipeline Stages (4 steps in main.py)
+### Pipeline (sequential, `main.py`)
 
-**Stage 0: User Input**
-- Report metadata (number, date, news count)
+`main.py` runs the pipeline in plain Python. The review/redo branch is a single `while True` loop around the summarize step:
 
-**Stage 1: News Crawling** (`src/news_crawler.py`)
-- Searches Google News RSS for each company in `SEARCH_CATEGORIES`
-- Fetches article content via `newspaper3k`
-- Scores articles based on `PRIORITY_KEYWORDS` (title = 2x weight, content = 1x weight)
-- Selects top-scored article per company
-- User manually selects final N articles → saved to `output/selected_news.xlsx`
+```
+metadata → crawl → select → ┌→ summarize → review ─accept─→ ailab → ppt → done
+                            │     ↑          │
+                            │     └─ r ──────┤  (resummarize: loop with same selected_df)
+                            └────────────────┘  (s reselect: re-pick from same crawled_df, no recrawl)
+```
 
-**Stage 2: News Summarization** (`src/news_summarize.py`)
-- Calls OpenAI API for each selected article
-- Generates structured Korean summaries: `[Title]`, `[Summary1-N]`, `[Insight]`
-- User manually selects which summaries to include in report
+**State is just local variables** in `main()` — `crawled_df`, `selected_df`, `summary_text`, `ailab_text`. The re-select branch reuses the in-scope `crawled_df` so the (multi-minute) crawl is never repeated within a session.
 
-**Stage 3: AI Lab Summarization** (`src/ailab_summarize.py`)
-- Reads `data/ailab_content.txt` (internal AI Lab updates)
-- Calls OpenAI API to generate 2 summaries
-- Separate from news crawling (different content source)
+**Pipeline steps** (all module functions called directly):
 
-**Stage 4: PPT Generation** (`src/ppt_maker.py`)
-- Loads template from `templates/AIWeeklyReport_format.pptx`
-- Writes to specific shape indices (hardcoded: 4, 13, 14)
-- Parses `[Tag]` sections and applies Korean font styles
-- Saves final PPTX with timestamp
+- **0. Metadata** — `input()` for report number and date.
+- **1. Crawl** (`crawl_news` in `src/news_crawler.py`) — Google News RSS per company in `SEARCH_CATEGORIES`, `newspaper3k` for content, scores via `PRIORITY_KEYWORDS` (title = 2x weight). Top-scored article per company. Runs once per session.
+- **1.5. Select** (`select_articles` in `src/news_crawler.py`) — shows DF, user picks any number of articles; writes `output/selected_news.xlsx` as audit trail.
+- **2. Summarize** (`summarize_articles` in `src/news_summarize.py`) — Claude call per article via `call_llm()` in `src/llm_client.py`, generates `[Title]`/`[Summary1-N]`/`[Insight]`; inner step asks user which summaries to include in the combined output.
+- **2.5. Review** (`prompt_review_decision()` in `main.py`) — shows combined summary, prompts `a` (accept) / `r` (re-summarize) / `s` (re-select).
+- **3. AI Lab** (`ailab_summarized(content)` in `src/ailab_summarize.py`) — takes a `content` string supplied by the caller (CLI prompt via `prompt_ailab_content()` in `main.py`, or `ailab_content` field in the `/api/{sid}/ailab` body for the web). Claude call to generate 2 summaries. No review loop.
+- **4. PPT** (`create_report` in `src/ppt_maker.py`) — fills `templates/AIWeeklyReport_format.pptx` shapes (META=4, NEWS=13, AILAB=14), saves to `output/AIWeeklyReport_{timestamp}.pptx`.
+
+**Re-loop semantics**:
+- `r` (resummarize) — `while` loops back to `summarize_articles(selected_df)` with the same articles. Claude `TEMPERATURE=0.3` so output varies between runs.
+- `s` (reselect) — `selected_df = select_articles(crawled_df)` re-runs the picker against the cached crawl; crawling is NOT repeated.
+- AI Lab summary intentionally has no review loop.
 
 ### Key Design Patterns
 
-**Singleton OpenAI Client** (`src/openai_client.py`)
+**Singleton Anthropic Client** (`src/llm_client.py`)
 - `get_shared_client()` returns global `_client_instance`
 - Initialized once with SSL verification disabled (intentional for internal network)
-- Client shared across `news_summarize.py` and `ailab_summarize.py`
+- `call_llm(system_prompt, user_prompt, model, max_tokens, log_prefix="")` wraps `messages.create` with the standard 5-block error handling. Both summarize modules go through this helper — add new LLM call policies here.
 
 **Configuration Module** (`src/config.py`)
-- Validates required directories on import (exits if missing)
+- `ensure_directories()` validates required directories and creates `output/` (call it once from `main.py`)
 - All file paths use `pathlib.Path`
-- Creates `output/` directory automatically
+- Importing the module has no side effects — safe for module-level tests/tools
 
 **Error Handling Strategy**
 - API errors: Print Korean error message, return `None`, allow pipeline to continue
@@ -89,7 +89,7 @@ Generated PPTX files are saved to `output/AIWeeklyReport_{timestamp}.pptx`
 ### Error Handling Pattern
 ```python
 try:
-    # OpenAI API call
+    # Claude API call
     response = client.chat.completions.create(...)
     if not response.choices:
         print("❌ Korean error message")
@@ -133,15 +133,16 @@ except Exception as e:
 - Korean fonts: "한화고딕 B", "한화고딕 EL", "한화고딕 L"
 
 **`main.py`**
-- Sequential pipeline with error checks between stages
-- Exits gracefully if any stage returns None/empty
-- No retry logic for failed stages (user must restart)
+- Sequential pipeline orchestrator. `ensure_directories()` then the linear `metadata → crawl → select → (summarize → review)* → ailab → ppt` flow
+- `prompt_review_decision()` helper handles the `a`/`r`/`s` input; the surrounding `while True` loop in `main()` implements re-summarize and re-select
+- `crawled_df` lives in `main()` scope so reselect never triggers a fresh crawl
+- Top-level try/except handles KeyboardInterrupt, FileNotFoundError, and unexpected errors with Korean messages + sys.exit codes
 
 ## Known Issues and Limitations
 
 ### Security Concerns
 - SSL verification disabled globally in `news_crawler.py` (monkey-patches `requests`)
-- SSL disabled for OpenAI client in `openai_client.py`
+- SSL disabled for Anthropic client in `llm_client.py`
 - Necessary for internal corporate network, but avoid in public deployments
 
 ### Input Validation Gaps
@@ -155,7 +156,7 @@ except Exception as e:
 - `list_all_shapes()` utility exists for debugging shape indices
 
 ### Model Configuration
-- Uses `MODEL_NAME = "gpt-5.1"` (verify this is correct model name)
+- Uses `MODEL_NAME = "claude-sonnet-4-6"` in both summarize modules
 - Model name not configurable without code change
 
 ## Testing
@@ -217,7 +218,7 @@ Key libraries and their purposes:
 - `feedparser`: Parse Google News RSS feeds
 - `googlenewsdecoder`: Decode Google News redirect URLs
 - `newspaper3k`: Extract article content from web pages
-- `openai`: GPT API for summarization
+- `anthropic`: Claude API for summarization
 - `python-pptx`: Generate PowerPoint files
 - `pandas`: Intermediate data storage (Excel)
 
@@ -229,7 +230,7 @@ Required directories (validated on startup):
 - `output/` - Created automatically
 
 Required environment variables:
-- `OPENAI_API_KEY` in `.env` file
+- `ANTHROPIC_API_KEY` in `.env` file
 
 ## Debugging Tips
 
@@ -239,8 +240,8 @@ Required environment variables:
 - Check `EXCLUDE_KEYWORDS` isn't filtering too aggressively
 
 ### If API Calls Fail
-- Verify `OPENAI_API_KEY` in `.env`
-- Check `MODEL_NAME` is valid OpenAI model
+- Verify `ANTHROPIC_API_KEY` in `.env`
+- Check `MODEL_NAME` is a valid Anthropic Claude model
 - Rate limit handling is automatic (prints error, returns None)
 
 ### If PPT Generation Fails

@@ -1,10 +1,6 @@
-from .openai_client import get_shared_client
-from .config import AILAB_CONTENT_FILE
-from pathlib import Path
-import anthropic
+from typing import Optional
 
-# Get shared Anthropic client instance
-client = get_shared_client()
+from .llm_client import call_llm
 
 # ============================================================
 # Configuration Constants
@@ -49,66 +45,25 @@ USER_PROMPT_TEMPLATE = """
 # Functions
 # ============================================================
 
-# Return AI Lab news summarization results
-def ailab_summarized():
+def ailab_summarized(content: str) -> Optional[str]:
+    """사용자가 직접 입력한 AI Lab 콘텐츠를 요약.
 
-    # Check if AI Lab content file exists
-    if not Path(AILAB_CONTENT_FILE).exists():
-        print(f"❌ 오류: AI Lab 콘텐츠 파일을 찾을 수 없습니다: {AILAB_CONTENT_FILE}")
-        print(f"   '{AILAB_CONTENT_FILE}' 파일을 생성하고 내용을 입력해주세요.")
-        return None
-
-    # Ailab Contents are saved in txt file
-    try:
-        with open(AILAB_CONTENT_FILE, "r", encoding="utf-8") as f:
-            content = f.read()
-    except Exception as e:
-        print(f"❌ AI Lab 콘텐츠 파일 읽기 실패: {e}")
-        return None
-
+    `content`는 호출자(CLI 또는 웹 API)가 사용자 입력으로부터 수집해 전달.
+    """
     if not content or len(content.strip()) < 10:
-        print(f"❌ AI Lab 콘텐츠 파일이 비어있거나 내용이 너무 짧습니다.")
+        print("❌ AI Lab 콘텐츠가 비어있거나 내용이 너무 짧습니다 (10자 이상 필요).")
         return None
 
-    # Claude API call with error handling
-    try:
-        response = client.messages.create(
-            model=MODEL_NAME,
-            max_tokens=MAX_TOKENS,
-            system=SYSTEM_PROMPT,
-            messages=[
-                {
-                    "role": "user",
-                    "content": USER_PROMPT_TEMPLATE.format(content=content)
-                }
-            ]
-        )
-
-        # Validate response has content
-        if not response.content or len(response.content) == 0:
-            print("❌ Claude API 응답이 비어있습니다.")
-            return None
-
-        result = response.content[0].text.strip()
-        return result
-
-    except anthropic.RateLimitError as e:
-        print(f"❌ Claude API 요청 한도 초과: {e}")
-        print("   잠시 후 다시 시도해주세요.")
-        return None
-    except anthropic.APIConnectionError as e:
-        print(f"❌ Claude API 연결 실패: {e}")
-        print("   네트워크 연결을 확인해주세요.")
-        return None
-    except anthropic.APIError as e:
-        print(f"❌ Claude API 오류: {e}")
-        return None
-    except Exception as e:
-        print(f"❌ 예상치 못한 오류 발생: {e}")
-        return None
+    return call_llm(
+        system_prompt=SYSTEM_PROMPT,
+        user_prompt=USER_PROMPT_TEMPLATE.format(content=content),
+        model=MODEL_NAME,
+        max_tokens=MAX_TOKENS,
+    )
 
 
 # Test (If needed)
 if __name__ == "__main__":
-    result = ailab_summarized()
+    sample = input("AI Lab 콘텐츠 (테스트용 한 줄): ")
+    result = ailab_summarized(sample)
     print(result)
