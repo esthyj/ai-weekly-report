@@ -1,9 +1,12 @@
 import re
 from pathlib import Path
+from typing import Union, Sequence
 from pptx import Presentation
 from pptx.util import Pt
 from pptx.dml.color import RGBColor
 from .config import PPT_TEMPLATE_FILE
+
+ShapePath = Union[int, Sequence[int]]
 
 # ============================================================
 # Settings
@@ -27,9 +30,9 @@ DEFAULT_STYLE = ("", "한화고딕 EL", 12, False, True)
 
 # Slide 0 shape indices — matches templates/AIWeeklyReport_format.pptx structure.
 # If the template is restructured, re-check with list_all_shapes() and update here.
-META_SHAPE_INDEX = 4    # 호수 + 날짜
-NEWS_SHAPE_INDEX = 13   # 뉴스 요약 본문
-AILAB_SHAPE_INDEX = 14  # AI Lab 요약 본문
+META_SHAPE_INDEX: ShapePath = 4         # 호수 + 날짜
+NEWS_SHAPE_INDEX: ShapePath = (10, 0)   # 그룹 10 안의 자식 0 — 뉴스 요약 본문
+AILAB_SHAPE_INDEX: ShapePath = (9, 0)   # 그룹 9 안의 자식 0 — AI Lab 요약 본문
 
 
 # ============================================================
@@ -54,18 +57,31 @@ def parse_sections(text: str):
     ]
 
 
-# Return specific index shape
-def find_shape_by_index(prs: Presentation, shape_index: int, slide_index: int = 0):
+# Return specific shape. shape_index can be:
+#   - int            : top-level shape index on the slide
+#   - sequence[int]  : path descending into group shapes (e.g. (10, 0) → slide.shapes[10].shapes[0])
+def find_shape_by_index(prs: Presentation, shape_index: ShapePath, slide_index: int = 0):
     if slide_index >= len(prs.slides):
         return None, None
-    
+
     slide = prs.slides[slide_index]
-    shapes = list(slide.shapes)
-    
-    if shape_index >= len(shapes):
+    path = (shape_index,) if isinstance(shape_index, int) else tuple(shape_index)
+    if not path:
         return None, None
-    
-    return slide, shapes[shape_index]
+
+    shapes = list(slide.shapes)
+    shape = None
+    for depth, idx in enumerate(path):
+        if idx >= len(shapes):
+            return None, None
+        shape = shapes[idx]
+        if depth < len(path) - 1:
+            # Need to descend — current shape must be a group
+            if not hasattr(shape, "shapes"):
+                return None, None
+            shapes = list(shape.shapes)
+
+    return slide, shape
 
 
 # Add a styled text run
@@ -162,7 +178,7 @@ def add_run_with_overrides(paragraph, text, font_name, font_size, base_underline
 
 # Add report number and date
 def set_number_and_date(prs: Presentation, number: str, date: str,
-                        shape_index: int = META_SHAPE_INDEX, slide_index: int = 0):
+                        shape_index: ShapePath = META_SHAPE_INDEX, slide_index: int = 0):
     """숫자와 날짜를 특정 TextBox에 입력"""
     _, shape = find_shape_by_index(prs, shape_index, slide_index)
     
@@ -182,7 +198,7 @@ def set_number_and_date(prs: Presentation, number: str, date: str,
 
 # Insert summarized text structured with tag-specific styles
 def set_textbox_from_summarizedtxt(prs: Presentation, text: str,
-                                    shape_index: int = NEWS_SHAPE_INDEX, slide_index: int = 0):
+                                    shape_index: ShapePath = NEWS_SHAPE_INDEX, slide_index: int = 0):
     # Find specific index shape
     _, shape = find_shape_by_index(prs, shape_index, slide_index)
     
