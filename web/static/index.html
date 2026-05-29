@@ -7,10 +7,17 @@
   <link rel="stylesheet" href="/app.css" />
 </head>
 <body>
-  <header>
-    <h1>📰 AI Weekly Report</h1>
-    <p class="sub">Google News 크롤링 → AI 요약 → PPT 보고서를 웹에서 체험해 보세요.</p>
-  </header>
+  <!-- 진행 단계 표시 (상단 고정) -->
+  <nav class="stepper-wrap" aria-label="진행 단계">
+    <ol id="stepper" class="stepper">
+      <li class="stepper-item" data-group="input"><span class="stepper-dot">1</span><span class="stepper-label">기본 정보 입력</span></li>
+      <li class="stepper-item" data-group="collect"><span class="stepper-dot">2</span><span class="stepper-label">뉴스 수집 및 요약</span></li>
+      <li class="stepper-item" data-group="ailab"><span class="stepper-dot">3</span><span class="stepper-label">부서 내용 정리</span></li>
+      <li class="stepper-item" data-group="review"><span class="stepper-dot">4</span><span class="stepper-label">최종 검토</span></li>
+      <li class="stepper-item" data-group="done"><span class="stepper-dot">5</span><span class="stepper-label">생성된 자료 출력</span></li>
+    </ol>
+    <p id="stepper-desc" class="stepper-desc"></p>
+  </nav>
 
   <main>
     <!-- Step 0: 메타데이터 + 크롤링 설정 -->
@@ -37,7 +44,7 @@
         <input id="cfg-company-input" type="text" placeholder="기업명 입력 후 Enter (예: 삼성화재)" />
         <div class="tag-actions">
           <button type="button" id="btn-preset-insurance">보험사 프리셋</button>
-          <button type="button" id="btn-clear-companies">전체 삭제</button>
+          <button type="button" id="btn-clear-companies">초기화</button>
         </div>
       </div>
 
@@ -72,7 +79,7 @@
       <p class="hint">2개 이상의 기사를 체크한 뒤 다음 단계로 진행하세요.</p>
       <div class="table-wrap">
         <table id="articles-table">
-          <thead><tr><th></th><th>#</th><th>분류</th><th>회사</th><th>점수</th><th>제목</th></tr></thead>
+          <thead><tr><th></th><th>#</th><th>검색 키워드</th><th>점수</th><th>제목</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -106,9 +113,9 @@
       <p class="hint">포함할 요약에 체크한 뒤 아래 동작을 선택하세요.</p>
       <div id="summaries-list" class="summaries"></div>
       <div class="review-actions">
-        <button id="btn-accept" class="primary">a · 수락 → PPT 생성</button>
-        <button id="btn-resummarize">r · 다시 요약 (같은 기사)</button>
-        <button id="btn-reselect">s · 기사 다시 선택</button>
+        <button id="btn-accept" class="primary">위 내용으로 진행</button>
+        <button id="btn-resummarize">다시 요약 (같은 기사)</button>
+        <button id="btn-reselect">기사 다시 선택</button>
       </div>
     </section>
 

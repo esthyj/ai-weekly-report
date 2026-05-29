@@ -26,10 +26,44 @@ const INSURANCE_PRESET = [
 
 const STEPS = ["meta", "crawl", "select", "summarize", "review", "ailab-input", "ailab", "final-review", "done"];
 
+// 내부 스텝 → 상단 stepper의 5개 사용자 단계 매핑
+const STEP_GROUPS = [
+  { group: "input", steps: ["meta"] },                              // 1. 기본 정보 입력
+  { group: "collect", steps: ["crawl", "select", "summarize", "review"] }, // 2. 뉴스 수집 및 요약
+  { group: "ailab", steps: ["ailab-input", "ailab"] },              // 3. 부서 내용 정리
+  { group: "review", steps: ["final-review"] },                     // 4. 최종 검토
+  { group: "done", steps: ["done"] },                               // 5. 생성된 자료 출력
+];
+
+// 각 화면이 무엇을 하는 단계인지 설명 (stepper 아래에 표시)
+const STEP_DESCRIPTIONS = {
+  "meta": "보고서 발행 호수·날짜와 검색 조건(필수 키워드·기업·기간)을 입력하세요.",
+  "crawl": "입력한 조건으로 Google News에서 기업별 최신 뉴스를 수집하고 있어요.",
+  "select": "수집된 기사 중 보고서에 포함할 기사를 선택하세요.",
+  "summarize": "선택한 기사를 AI가 핵심만 요약하고 있어요.",
+  "review": "생성된 요약을 검토하고, 보고서에 넣을 항목을 선택하세요.",
+  "ailab-input": "PPT의 'AI Lab' 섹션에 들어갈 원본 내용을 입력하세요.",
+  "ailab": "입력한 AI Lab 내용을 AI가 요약하고 있어요.",
+  "final-review": "뉴스·AI Lab 요약을 최종 확인하고 필요하면 편집하세요.",
+  "done": "PPT 보고서가 완성되었어요. 파일을 다운로드하세요.",
+};
+
+function updateStepper(stepName) {
+  const idx = STEP_GROUPS.findIndex((g) => g.steps.includes(stepName));
+  if (idx < 0) return; // error 등 매핑되지 않는 화면에서는 현재 상태 유지
+  document.querySelectorAll(".stepper-item").forEach((el, i) => {
+    el.classList.toggle("done", i < idx);
+    el.classList.toggle("active", i === idx);
+  });
+  const desc = document.getElementById("stepper-desc");
+  if (desc) desc.textContent = STEP_DESCRIPTIONS[stepName] || "";
+}
+
 function show(stepName) {
   document.querySelectorAll(".step").forEach((el) => el.classList.remove("active"));
   const el = document.getElementById("step-" + stepName);
   if (el) el.classList.add("active");
+  updateStepper(stepName);
 }
 
 function showError(message) {
@@ -450,11 +484,11 @@ function renderArticles() {
   state.articles.forEach((a, idx) => {
     const tr = document.createElement("tr");
     const oneBased = idx + 1;
+    const keyword = a.search_keyword || a.company || "";
     tr.innerHTML = `
       <td><input type="checkbox" data-idx="${oneBased}" /></td>
       <td>${oneBased}</td>
-      <td>${a.category}</td>
-      <td>${a.company}</td>
+      <td>${keyword}</td>
       <td>${a.score}</td>
       <td><a href="${a.link}" target="_blank" rel="noopener">${a.title}</a></td>
     `;

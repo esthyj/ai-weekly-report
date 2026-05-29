@@ -102,7 +102,7 @@ def _df_to_records(df: pd.DataFrame) -> list[dict]:
     """기사 표시용으로 안전한 컬럼만 직렬화."""
     if df is None or df.empty:
         return []
-    cols = ["category", "company", "score", "title", "link", "published"]
+    cols = ["category", "company", "search_keyword", "score", "title", "link", "published"]
     return [
         {col: row.get(col, "") for col in cols}
         for _, row in df.reset_index(drop=True).iterrows()

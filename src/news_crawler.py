@@ -369,9 +369,11 @@ def crawl_news(
                     continue
 
                 score = calculate_score(entry.title, content)
+                search_keyword = f"{company} {cfg.required_keyword}".strip() if cfg.required_keyword else company
                 candidates.append({
                     "category": cat["category"],
                     "company": company,
+                    "search_keyword": search_keyword,
                     "title": entry.title,
                     "published": entry.published,
                     "link": url,
