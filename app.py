@@ -276,7 +276,7 @@ def start_ailab(sid: str, body: AilabBody):
 
     ailab_content = body.ailab_content.strip()
     if len(ailab_content) < 10:
-        raise HTTPException(400, detail="AI Lab 콘텐츠를 10자 이상 입력하세요.")
+        raise HTTPException(400, detail="부서 내 진행상황을 10자 이상 입력하세요.")
 
     session.ailab = StageState()
     session.ailab_text = None
@@ -284,12 +284,12 @@ def start_ailab(sid: str, body: AilabBody):
     cb = _make_progress_cb(session.ailab)
 
     def task():
-        cb("🔬 AI Lab 콘텐츠 요약 중...")
+        cb("🔬 부서 내용 요약 중...")
         ailab_text = ailab_summarized(ailab_content)
         if not ailab_text:
-            raise RuntimeError("AI Lab 요약 생성에 실패했습니다.")
+            raise RuntimeError("부서 내용 요약 생성에 실패했습니다.")
         session.ailab_text = ailab_text
-        cb("✅ AI Lab 요약 완료")
+        cb("✅ 부서 내용 요약 완료")
 
     threading.Thread(
         target=_run_stage, args=(session.ailab, task), daemon=True
@@ -307,12 +307,12 @@ async def ailab_stream(sid: str):
 
 @app.get("/api/{sid}/final-content")
 def get_final_content(sid: str):
-    """최종 확인 페이지에 표시할 뉴스 요약 + AI Lab 요약을 반환."""
+    """최종 확인 페이지에 표시할 뉴스 요약 + 부서 내용 요약을 반환."""
     session = _require(sid)
     if not session.combined_summary:
         raise HTTPException(409, detail="뉴스 요약이 아직 확정되지 않았습니다.")
     if session.ailab.status != "done" or not session.ailab_text:
-        raise HTTPException(409, detail="AI Lab 요약이 아직 완료되지 않았습니다.")
+        raise HTTPException(409, detail="부서 내용 요약이 아직 완료되지 않았습니다.")
     return {
         "combined_summary": session.combined_summary,
         "ailab_text": session.ailab_text,
@@ -329,7 +329,7 @@ def generate_ppt(sid: str, body: PptBody):
     combined = body.combined_summary.strip()
     ailab = body.ailab_text.strip()
     if not combined or not ailab:
-        raise HTTPException(400, detail="뉴스 요약과 AI Lab 요약 모두 비어있지 않아야 합니다.")
+        raise HTTPException(400, detail="뉴스 요약과 부서 내용 요약 모두 비어있지 않아야 합니다.")
 
     # 사용자가 편집한 최종본을 세션에도 반영 (재요청·다운로드 일관성)
     session.combined_summary = combined

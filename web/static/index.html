@@ -16,25 +16,28 @@
       <li class="stepper-item" data-group="review"><span class="stepper-dot">4</span><span class="stepper-label">최종 검토</span></li>
       <li class="stepper-item" data-group="done"><span class="stepper-dot">5</span><span class="stepper-label">생성된 자료 출력</span></li>
     </ol>
-    <p id="stepper-desc" class="stepper-desc"></p>
   </nav>
 
   <main>
+    <!-- 단계 안내(아이콘 + 설명) — 스크롤 영역 -->
+    <img id="stepper-desc-icon" class="stepper-desc-icon" src="/images/write.png" alt="" />
+    <p id="stepper-desc" class="stepper-desc"></p>
+
     <!-- Step 0: 메타데이터 + 크롤링 설정 -->
     <section id="step-meta" class="step active">
-      <h2>1. 보고서 정보 입력</h2>
+      <h2>보고서 정보 입력</h2>
       <div class="form-row">
         <label>발행 호수 <input id="meta-number" type="text" placeholder="예: 25" /></label>
         <label>발행 날짜 <input id="meta-date" type="text" placeholder="예: 2026년 5월 28일" /></label>
       </div>
 
-      <h2 style="margin-top: 22px;">2. 크롤링 설정</h2>
+      <h2 style="margin-top: 22px;">크롤링 설정</h2>
       <div class="form-row">
         <label>검색 필수 키워드
-          <input id="cfg-keyword" type="text" value="AI" placeholder="예: AI" />
+          <input id="cfg-keyword" type="text" placeholder="예: AI" />
         </label>
-        <label>검색 기간 (일)
-          <input id="cfg-days" type="number" min="1" value="14" />
+        <label>검색 기간 (입력일까지의 뉴스기사만 검색)
+          <input id="cfg-days" type="number" min="1" placeholder="예: 14" />
         </label>
       </div>
 
@@ -48,13 +51,12 @@
         </div>
       </div>
 
-      <p class="hint">시작 버튼을 누르면 약 5–10분 걸리는 실제 크롤링이 즉시 시작됩니다.</p>
-      <button id="btn-start" class="primary">크롤링 시작</button>
+      <button id="btn-start" class="primary" style="margin-top: 20px;">크롤링 시작</button>
     </section>
 
     <!-- Step 1: 크롤링 진행 -->
     <section id="step-crawl" class="step">
-      <h2>2. 뉴스를 모으는 중...</h2>
+      <h2>뉴스를 검색하는 중...</h2>
 
       <div class="progress-card">
         <div class="progress-head">
@@ -75,20 +77,20 @@
 
     <!-- Step 2: 기사 선택 -->
     <section id="step-select" class="step">
-      <h2>3. 보고서에 포함할 기사 선택</h2>
-      <p class="hint">2개 이상의 기사를 체크한 뒤 다음 단계로 진행하세요.</p>
+      <h2>보고서에 포함할 기사 선택</h2>
+      <p class="hint">1개 이상의 기사를 체크한 뒤 다음 단계로 진행하세요.</p>
       <div class="table-wrap">
         <table id="articles-table">
           <thead><tr><th></th><th>#</th><th>검색 키워드</th><th>점수</th><th>제목</th></tr></thead>
           <tbody></tbody>
         </table>
       </div>
-      <button id="btn-summarize" class="primary">선택한 기사로 요약 시작</button>
+      <button id="btn-summarize" class="primary">요약 시작</button>
     </section>
 
     <!-- Step 3: 요약 진행 -->
     <section id="step-summarize" class="step">
-      <h2>4. AI가 기사를 요약하는 중...</h2>
+      <h2>AI가 기사를 요약하는 중...</h2>
 
       <div class="progress-card">
         <div class="progress-head">
@@ -100,16 +102,11 @@
       </div>
 
       <div id="summarize-articles" class="summarize-articles"></div>
-
-      <details class="log-details">
-        <summary>상세 로그 보기</summary>
-        <div id="summarize-log" class="log"></div>
-      </details>
     </section>
 
     <!-- Step 4: 요약 검토 -->
     <section id="step-review" class="step">
-      <h2>5. 요약 검토</h2>
+      <h2>요약 검토</h2>
       <p class="hint">포함할 요약에 체크한 뒤 아래 동작을 선택하세요.</p>
       <div id="summaries-list" class="summaries"></div>
       <div class="review-actions">
@@ -121,35 +118,30 @@
 
     <!-- Step 5: AI Lab 콘텐츠 입력 -->
     <section id="step-ailab-input" class="step">
-      <h2>6. AI Lab 콘텐츠 입력</h2>
-      <p class="hint">PPT의 'AI Lab' 섹션에 들어갈 원본 내용을 붙여넣으세요. 입력된 내용을 AI가 요약합니다.</p>
-      <textarea id="ailab-content" class="ailab-textarea" rows="14" placeholder="AI Lab 콘텐츠를 입력하세요. (10자 이상)"></textarea>
+      <h2>부서 내 주요 내용 입력</h2>
+      <p class="hint">PPT의 'AI Lab' 섹션에 들어갈 내용을 입력해주세요. 입력된 내용을 AI가 요약합니다.</p>
+      <textarea id="ailab-content" class="ailab-textarea" rows="14" placeholder="부서 내 주요 내용을 입력하세요. (10자 이상)"></textarea>
       <div class="ailab-actions">
-        <button id="btn-generate-ppt" class="primary">AI Lab 요약 + PPT 생성</button>
+        <button id="btn-generate-ppt" class="primary">요약</button>
       </div>
     </section>
 
     <!-- Step 6: AI Lab 요약 진행 -->
     <section id="step-ailab" class="step">
-      <h2>7. AI Lab 콘텐츠를 요약하는 중...</h2>
+      <h2>부서 내용을 요약하는 중...</h2>
 
       <div class="ailab-status-card">
         <div class="ailab-spinner-wrap"><span class="spinner-lg"></span></div>
         <div class="ailab-status-body">
-          <h3>AI가 입력하신 내용을 분석하고 있어요</h3>
+          <h3>AI가 입력하신 내용을 요약하고 있어요</h3>
           <p id="ailab-status-message">잠시만 기다려 주세요...</p>
         </div>
       </div>
-
-      <details class="log-details">
-        <summary>상세 로그 보기</summary>
-        <div id="ailab-log" class="log"></div>
-      </details>
     </section>
 
     <!-- Step 7: 최종 확인 -->
     <section id="step-final-review" class="step">
-      <h2>8. 최종 확인 · 편집</h2>
+      <h2>최종 확인 · 편집</h2>
       <p class="hint">단어를 선택한 뒤 툴바로 <b>굵게</b>, <i>이탤릭</i>, <u>밑줄</u>, 글자 크기(10/12/14/16pt), 색상(<span style="color:#FFA94D">연한</span>·<span style="color:#D84315">진한</span> 주황 / 검정) 강조를 적용할 수 있습니다. 섹션(제목 → 요약 → 인사이트) 구분은 화면에 자동 표시되며, PPT 생성 시 그대로 유지됩니다.</p>
 
       <div class="final-card">
@@ -195,7 +187,7 @@
       </div>
 
       <div class="review-actions">
-        <button id="btn-confirm-ppt" class="primary">수정된 내용으로 PPT 생성</button>
+        <button id="btn-confirm-ppt" class="primary">위 내용으로 진행</button>
         <button id="btn-reset-edits">원본으로 되돌리기</button>
         <button id="btn-back-ailab">AI Lab 콘텐츠 다시 입력</button>
       </div>

@@ -37,15 +37,25 @@ const STEP_GROUPS = [
 
 // 각 화면이 무엇을 하는 단계인지 설명 (stepper 아래에 표시)
 const STEP_DESCRIPTIONS = {
-  "meta": "보고서 발행 호수·날짜와 검색 조건(필수 키워드·기업·기간)을 입력하세요.",
-  "crawl": "입력한 조건으로 Google News에서 기업별 최신 뉴스를 수집하고 있어요.",
+  "meta": "보고서 발행 호수·날짜와 검색 조건(필수 키워드·기업 키워드·기간)을 입력하세요.",
+  "crawl": "입력한 조건으로 Google에서 기업별 최신 뉴스를 수집하고 있어요.",
   "select": "수집된 기사 중 보고서에 포함할 기사를 선택하세요.",
-  "summarize": "선택한 기사를 AI가 핵심만 요약하고 있어요.",
-  "review": "생성된 요약을 검토하고, 보고서에 넣을 항목을 선택하세요.",
-  "ailab-input": "PPT의 'AI Lab' 섹션에 들어갈 원본 내용을 입력하세요.",
-  "ailab": "입력한 AI Lab 내용을 AI가 요약하고 있어요.",
-  "final-review": "뉴스·AI Lab 요약을 최종 확인하고 필요하면 편집하세요.",
-  "done": "PPT 보고서가 완성되었어요. 파일을 다운로드하세요.",
+  "summarize": "선택한 기사를 AI가 핵심만 요약하고 있어요. 잠시만 기다려 주세요!",
+  "review": "생성된 뉴스 요약을 검토하고, 보고서에 넣을 항목을 선택하세요.",
+  "ailab-input": "금주 부서에서 진행된 주요 내용을 입력하세요.",
+  "ailab": "입력한 내용을 AI가 요약하고 있어요.",
+  "final-review": "뉴스 및 부서 내용 요약을 최종 확인하고 필요하면 편집하세요.",
+  "done": "보고서가 완성되었어요. 필요한 파일을 다운로드하세요.",
+};
+
+// 화면별 안내 아이콘 (설명 글씨 위에 표시)
+// "뉴스 수집 및 요약" 단계(crawl·select·summarize·review) 내내 newspaper.png 유지
+const STEP_ICONS = {
+  "meta": "/images/write.png",
+  "crawl": "/images/newspaper.png",
+  "select": "/images/newspaper.png",
+  "summarize": "/images/newspaper.png",
+  "review": "/images/newspaper.png",
 };
 
 function updateStepper(stepName) {
@@ -57,6 +67,17 @@ function updateStepper(stepName) {
   });
   const desc = document.getElementById("stepper-desc");
   if (desc) desc.textContent = STEP_DESCRIPTIONS[stepName] || "";
+  // 단계별 안내 아이콘 — 매핑된 화면에서만 표시
+  const icon = document.getElementById("stepper-desc-icon");
+  if (icon) {
+    const src = STEP_ICONS[stepName];
+    if (src) {
+      icon.src = src;
+      icon.classList.add("show");
+    } else {
+      icon.classList.remove("show");
+    }
+  }
 }
 
 function show(stepName) {
@@ -92,6 +113,11 @@ function streamLogs(stageStream, logEl, onLine) {
         if (logEl) {
           const line = document.createElement("div");
           line.className = "line";
+          // 기업 시작(🔍) / 요약 항목 시작(📝) 줄에만 구분선 표시
+          const head = text.trimStart();
+          if (head.startsWith("🔍") || head.startsWith("📝")) {
+            line.classList.add("group-start");
+          }
           line.textContent = text;
           logEl.appendChild(line);
           logEl.scrollTop = logEl.scrollHeight;
@@ -170,7 +196,7 @@ const crawlView = {
       wrap.appendChild(group);
     });
 
-    this.updateProgress("뉴스를 모으는 중...");
+    this.updateProgress("뉴스를 검색하는 중...");
     document.getElementById("crawl-current").innerHTML = '<span class="spinner"></span>잠시만 기다려 주세요.';
   },
 
@@ -237,7 +263,7 @@ const crawlView = {
       this.rows[this.currentRowIdx].detail = m[1];
       this.renderRow(this.currentRowIdx);
       this.done += 1;
-      this.updateProgress("뉴스를 모으는 중...");
+      this.updateProgress("뉴스를 검색하는 중...");
       this.currentRowIdx = null;
       return;
     }
@@ -247,7 +273,7 @@ const crawlView = {
       this.rows[this.currentRowIdx].detail = "관련 뉴스 없음";
       this.renderRow(this.currentRowIdx);
       this.done += 1;
-      this.updateProgress("뉴스를 모으는 중...");
+      this.updateProgress("뉴스를 검색하는 중...");
       this.currentRowIdx = null;
     }
   },
@@ -339,7 +365,7 @@ const summarizeView = {
       if (this.rows[n]) {
         this.current = n;
         this.rows[n].status = "working";
-        this.rows[n].detail = "AI 분석 중...";
+        this.rows[n].detail = "AI 요약 중...";
         this.renderRow(n);
         this.setCurrent(this.rows[n].title);
       }
@@ -514,7 +540,7 @@ async function startSummarize() {
     });
     await api("POST", `/api/${state.sessionId}/summarize`);
     show("summarize");
-    document.getElementById("summarize-log").innerHTML = "";
+    { const _sl = document.getElementById("summarize-log"); if (_sl) _sl.innerHTML = ""; }
     const selectedArticles = checked.map((idx) => state.articles[idx - 1]);
     summarizeView.build(selectedArticles);
     await streamLogs(
@@ -532,21 +558,54 @@ async function startSummarize() {
   }
 }
 
+// 요약 텍스트([Title]/[SummaryN]/[Insight])를 태그 없이 스타일 HTML로 변환.
+//  - Title  → 볼드
+//  - Summary → 줄별 • 불릿
+//  - Insight → ➔ 화살표
+const SUMMARY_SECTION_RE = /\[(Title|Summary\d*|Insight)\]\s*/gi;
+function summaryToStyledHtml(text) {
+  if (!text) return "";
+  const matches = [...text.matchAll(SUMMARY_SECTION_RE)];
+  if (matches.length === 0) {
+    return `<div class="sum-summary">${escapeHtml(text.trim())}</div>`;
+  }
+  const parts = [];
+  matches.forEach((m, i) => {
+    const tag = m[1].toLowerCase();
+    const start = m.index + m[0].length;
+    const end = i + 1 < matches.length ? matches[i + 1].index : text.length;
+    const content = text.slice(start, end).trim();
+    if (!content) return;
+    if (tag === "title") {
+      parts.push(`<div class="sum-title">${escapeHtml(content)}</div>`);
+    } else if (tag.startsWith("summary")) {
+      content.split("\n").map((l) => l.trim()).filter(Boolean).forEach((line) => {
+        parts.push(`<div class="sum-summary">${escapeHtml(line)}</div>`);
+      });
+    } else if (tag === "insight") {
+      parts.push(`<div class="sum-insight">${escapeHtml(content)}</div>`);
+    }
+  });
+  return parts.join("");
+}
+
 function renderSummaries() {
   const wrap = document.getElementById("summaries-list");
   wrap.innerHTML = "";
   state.summaries.forEach((s) => {
     const card = document.createElement("div");
-    card.className = "summary-card";
-    card.innerHTML = `
-      <label>
-        <input type="checkbox" data-idx="${s.index}" checked />
-        <span>[${s.index}] ${s.title}</span>
-      </label>
-      <pre></pre>
-    `;
-    card.querySelector("pre").textContent = s.summary;
-    card.classList.add("checked");
+    card.className = "summary-card checked";
+
+    const label = document.createElement("label");
+    label.innerHTML = `<input type="checkbox" data-idx="${s.index}" checked />`;
+
+    const body = document.createElement("div");
+    body.className = "summary-body";
+    body.innerHTML = summaryToStyledHtml(s.summary);
+
+    card.appendChild(label);
+    card.appendChild(body);
+
     const cb = card.querySelector("input");
     cb.addEventListener("change", () => {
       card.classList.toggle("checked", cb.checked);
@@ -585,7 +644,7 @@ async function summarizeAilab() {
   try {
     await api("POST", `/api/${state.sessionId}/ailab`, { ailab_content: content });
     show("ailab");
-    document.getElementById("ailab-log").innerHTML = "";
+    { const _al = document.getElementById("ailab-log"); if (_al) _al.innerHTML = ""; }
     ailabView.reset();
     await streamLogs(
       `/api/${state.sessionId}/ailab/stream`,
@@ -914,7 +973,7 @@ async function resummarize() {
   try {
     await api("POST", `/api/${state.sessionId}/summarize`);
     show("summarize");
-    document.getElementById("summarize-log").innerHTML = "";
+    { const _sl = document.getElementById("summarize-log"); if (_sl) _sl.innerHTML = ""; }
     const selectedArticles = state.selectedIndices.map((idx) => state.articles[idx - 1]);
     summarizeView.build(selectedArticles);
     await streamLogs(
@@ -948,8 +1007,8 @@ function restart() {
   document.getElementById("final-ailab-summary").innerHTML = "";
   document.getElementById("meta-number").value = "";
   document.getElementById("meta-date").value = "";
-  document.getElementById("cfg-keyword").value = "AI";
-  document.getElementById("cfg-days").value = "14";
+  document.getElementById("cfg-keyword").value = "";
+  document.getElementById("cfg-days").value = "";
   document.getElementById("cfg-company-input").value = "";
   document.getElementById("ailab-content").value = "";
   renderCompanyTags();
