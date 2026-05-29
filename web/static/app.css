@@ -188,7 +188,8 @@ button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 }
 .log .line { margin: 0; padding: 1px 0; }
 
-.table-wrap { overflow-x: auto; }
+.table-wrap { overflow-x: auto; margin-bottom: 18px; }
+#btn-summarize { margin-top: 4px; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td {
   border-bottom: 1px solid var(--border);
@@ -363,7 +364,7 @@ td a:hover { text-decoration: underline; }
   content: "•";
   position: absolute;
   left: 4px;
-  color: var(--brand);
+  color: var(--text);
   font-weight: 500;
 }
 
@@ -380,7 +381,7 @@ td a:hover { text-decoration: underline; }
   left: 0;
   text-decoration: none;
   display: inline-block;
-  color: var(--brand);
+  color: var(--text);
 }
 
 /* Crawl progress UI */
