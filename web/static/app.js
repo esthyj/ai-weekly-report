@@ -56,6 +56,8 @@ const STEP_ICONS = {
   "select": "/images/newspaper.png",
   "summarize": "/images/newspaper.png",
   "review": "/images/newspaper.png",
+  "final-review": "/images/check.png",
+  "done": "/images/file.png",
 };
 
 function updateStepper(stepName) {
