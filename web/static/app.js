@@ -82,11 +82,107 @@ function updateStepper(stepName) {
   }
 }
 
+// 결과물이 나왔음을 알리는 폭죽(컨페티) 효과 — "생성된 자료 출력" 진입 시 1회 재생
+function launchConfetti() {
+  const prev = document.getElementById("confetti-canvas");
+  if (prev) prev.remove();
+
+  const canvas = document.createElement("canvas");
+  canvas.id = "confetti-canvas";
+  canvas.style.cssText =
+    "position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:9999;";
+  document.body.appendChild(canvas);
+
+  const ctx = canvas.getContext("2d");
+  const DPR = window.devicePixelRatio || 1;
+  function resize() {
+    canvas.width = window.innerWidth * DPR;
+    canvas.height = window.innerHeight * DPR;
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+  resize();
+  window.addEventListener("resize", resize);
+
+  const W = () => window.innerWidth;
+  const H = () => window.innerHeight;
+  const COLORS = ["#F37321", "#FBB584", "#F89B5C", "#FFD166", "#06D6A0", "#118AB2", "#EF476F"];
+  const parts = [];
+
+  // 양쪽 하단 + 중앙 상단에서 위로 터지는 폭죽 모양 발사
+  function burst(originX, originY, count, spread, angle) {
+    for (let i = 0; i < count; i++) {
+      const a = angle + (Math.random() - 0.5) * spread;
+      const speed = 14 + Math.random() * 20;
+      parts.push({
+        x: originX,
+        y: originY,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed,
+        size: 9 + Math.random() * 13,
+        color: COLORS[(Math.random() * COLORS.length) | 0],
+        rot: Math.random() * Math.PI * 2,
+        vrot: (Math.random() - 0.5) * 0.4,
+        shape: Math.random() < 0.5 ? "rect" : "circle",
+      });
+    }
+  }
+
+  const up = -Math.PI / 2;
+  burst(W() * 0.1, H() * 0.95, 160, 1.0, up - 0.35);  // 왼쪽 하단 → 우상향
+  burst(W() * 0.9, H() * 0.95, 160, 1.0, up + 0.35);  // 오른쪽 하단 → 좌상향
+  burst(W() * 0.5, H() * 0.25, 140, Math.PI * 2, up); // 중앙 사방 대확산
+  burst(W() * 0.3, H() * 0.35, 90, Math.PI * 2, up);  // 좌상단 확산
+  burst(W() * 0.7, H() * 0.35, 90, Math.PI * 2, up);  // 우상단 확산
+
+  const GRAVITY = 0.28;
+  const DRAG = 0.992;
+  const start = performance.now();
+  const DURATION = 3200;
+
+  function frame(now) {
+    const elapsed = now - start;
+    const fade = elapsed > DURATION - 700 ? Math.max(0, (DURATION - elapsed) / 700) : 1;
+    ctx.clearRect(0, 0, W(), H());
+
+    for (const p of parts) {
+      p.vx *= DRAG;
+      p.vy = p.vy * DRAG + GRAVITY;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rot += p.vrot;
+
+      ctx.save();
+      ctx.globalAlpha = fade;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      if (p.shape === "rect") {
+        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    if (elapsed < DURATION) {
+      requestAnimationFrame(frame);
+    } else {
+      window.removeEventListener("resize", resize);
+      canvas.remove();
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
 function show(stepName) {
   document.querySelectorAll(".step").forEach((el) => el.classList.remove("active"));
   const el = document.getElementById("step-" + stepName);
   if (el) el.classList.add("active");
   updateStepper(stepName);
+  // 결과물(file.png 아이콘)이 나타나는 시점에 맞춰 폭죽 재생
+  if (stepName === "done") launchConfetti();
 }
 
 function showError(message) {
@@ -695,11 +791,6 @@ async function confirmAndGeneratePpt() {
   }
 }
 
-function backToAilabInput() {
-  show("ailab-input");
-  document.getElementById("ailab-content").focus();
-}
-
 function setFinalReviewContent(combinedSummary, ailabText) {
   const newsEl = document.getElementById("final-news-summary");
   const ailabEl = document.getElementById("final-ailab-summary");
@@ -1028,7 +1119,6 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-reselect").addEventListener("click", reselect);
   document.getElementById("btn-generate-ppt").addEventListener("click", summarizeAilab);
   document.getElementById("btn-confirm-ppt").addEventListener("click", confirmAndGeneratePpt);
-  document.getElementById("btn-back-ailab").addEventListener("click", backToAilabInput);
   document.getElementById("btn-reset-edits").addEventListener("click", resetEdits);
 
   // 최종 확인 — 툴바 클릭 위임 + selection 보존 + 붙여넣기 정화

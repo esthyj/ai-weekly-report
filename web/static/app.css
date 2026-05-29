@@ -200,6 +200,22 @@ main { max-width: none; margin: 6px auto 0; padding: 0 32px 80px; }
   box-shadow: 0 0 0 3px var(--brand-tint);
 }
 
+/* 크롬 자동완성(autofill) 시 입력란이 하늘색으로 칠해지는 것 방지 */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #FEFDFC inset;
+  -webkit-text-fill-color: var(--text);
+  /* 자동완성 배경 전환을 사실상 무한 지연시켜 하늘색이 보이지 않게 함 */
+  transition: background-color 9999s ease-in-out 0s;
+}
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #fff inset, 0 0 0 3px var(--brand-tint);
+  -webkit-text-fill-color: var(--text);
+}
+
 button, a.primary {
   padding: 11px 18px;
   border: 1px solid var(--border-strong);
