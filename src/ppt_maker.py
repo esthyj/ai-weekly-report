@@ -1,4 +1,5 @@
 import re
+import math
 from pathlib import Path
 from typing import Union, Sequence
 from pptx import Presentation
@@ -173,6 +174,56 @@ def add_run_with_overrides(paragraph, text, font_name, font_size, base_underline
 
 
 # ============================================================
+# Dynamic shape height
+# ============================================================
+
+EMU_PER_PT = 12700  # 1pt = 12700 EMU
+
+# 한 글자의 가로 폭을 폰트 크기(em) 기준 단위로 환산.
+# 한글/한자/전각 문자는 1.0em, 그 외(영문·숫자·기호·공백)는 약 0.55em 로 근사.
+def _char_width_em(ch: str) -> float:
+    o = ord(ch)
+    if (0xAC00 <= o <= 0xD7A3       # 한글 음절
+            or 0x3130 <= o <= 0x318F    # 한글 자모
+            or 0x4E00 <= o <= 0x9FFF    # 한자
+            or 0x3000 <= o <= 0x303F    # CJK 문장부호
+            or 0xFF00 <= o <= 0xFFEF):  # 전각 영숫자/기호
+        return 1.0
+    return 0.55
+
+
+# 채워진 텍스트 프레임이 실제로 차지할 세로 높이를 추정(EMU).
+# word_wrap=True 기준으로 박스 폭에 맞춰 줄바꿈되는 줄 수를 문자 폭 합으로 근사한다.
+# line_factor: 폰트 크기 대비 줄 높이 배율(단일 줄간격 ≈ 1.2~1.25).
+def _estimate_text_frame_height(shape, line_factor: float = 1.25) -> int:
+    tf = shape.text_frame
+    avail_pt = (shape.width - tf.margin_left - tf.margin_right) / EMU_PER_PT
+    if avail_pt <= 0:
+        avail_pt = shape.width / EMU_PER_PT
+
+    total_pt = 0.0
+    for para in tf.paragraphs:
+        sizes = [r.font.size.pt for r in para.runs if r.font.size is not None]
+        font_pt = max(sizes) if sizes else 12.0
+        score = sum(_char_width_em(ch) for r in para.runs for ch in r.text)
+
+        units_per_line = max(avail_pt / font_pt, 1.0)
+        lines = max(1, math.ceil(score / units_per_line)) if score else 1
+        total_pt += lines * font_pt * line_factor
+
+    return int(total_pt * EMU_PER_PT)
+
+
+# 도형 높이를 텍스트 양에 맞춰 동적으로 조절한다.
+# 본문 정렬이 MIDDLE 이므로 위·아래로 대칭적인 약간의 여유(padding)가 생긴다.
+# (그룹 자식이라도 chExt==ext 라 cy 가 곧 렌더링 높이.)
+def autosize_shape_height(shape, padding=Pt(3)):
+    tf = shape.text_frame
+    content = _estimate_text_frame_height(shape)
+    shape.height = int(content + tf.margin_top + tf.margin_bottom + padding)
+
+
+# ============================================================
 # Write PPT
 # ============================================================
 
@@ -216,6 +267,7 @@ def set_textbox_from_summarizedtxt(prs: Presentation, text: str,
 
     if not sections:
         add_styled_run(tf.paragraphs[0], text.strip(), "한화고딕 EL", 12)
+        autosize_shape_height(shape)
         return
 
     first_para_used = False
@@ -238,6 +290,8 @@ def set_textbox_from_summarizedtxt(prs: Presentation, text: str,
 
         if tag == "insight":
             add_styled_run(tf.add_paragraph(), " ", "한화고딕 EL", 9)
+
+    autosize_shape_height(shape)
 
 
 # ============================================================
