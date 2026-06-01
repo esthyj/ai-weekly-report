@@ -39,7 +39,7 @@ const STEP_GROUPS = [
 const STEP_DESCRIPTIONS = {
   "meta": "보고서 발행 호수·날짜와 검색 조건(필수 키워드·기업 키워드·기간)을 입력하세요.",
   "crawl": "입력한 조건으로 Google에서 기업별 최신 뉴스를 수집하고 있어요.",
-  "select": "수집된 기사 중 보고서에 포함할 기사를 선택하세요.",
+  "select": "기사 수집 완료! 수집된 기사 중 보고서에 포함할 기사를 선택하세요.",
   "summarize": "선택한 기사를 AI가 핵심만 요약하고 있어요. 잠시만 기다려 주세요!",
   "review": "생성된 뉴스 요약을 검토하고, 보고서에 넣을 항목을 선택하세요.",
   "ailab-input": "금주 부서에서 진행된 주요 내용을 입력하세요.",
@@ -68,7 +68,18 @@ function updateStepper(stepName) {
     el.classList.toggle("active", i === idx);
   });
   const desc = document.getElementById("stepper-desc");
-  if (desc) desc.textContent = STEP_DESCRIPTIONS[stepName] || "";
+  if (desc) {
+    const text = STEP_DESCRIPTIONS[stepName] || "";
+    if (stepName === "crawl" || stepName === "summarize") {
+      desc.textContent = stepName === "crawl" ? text + " 잠시만 기다려주세요!" : text;
+      const dots = document.createElement("span");
+      dots.className = "loading-dots";
+      dots.innerHTML = "<span></span><span></span><span></span>";
+      desc.appendChild(dots);
+    } else {
+      desc.textContent = text;
+    }
+  }
   // 단계별 안내 아이콘 — 매핑된 화면에서만 표시
   const icon = document.getElementById("stepper-desc-icon");
   if (icon) {
@@ -958,6 +969,65 @@ function wrapSelectionStyle(editor, styles) {
   sel.addRange(newRange);
 }
 
+// ── PPTX 스타일 컬러 팔레트 ──────────────────────────────────────────
+// 테마 색(상단 10개) + 그 아래 명/암 변형 5행 + 표준 색 10개 격자
+const PALETTE_THEME = [
+  "#FFFFFF", "#000000", "#E7E6E6", "#44546A", "#F37321",
+  "#DE5F12", "#C00000", "#FFC000", "#70AD47", "#4472C4",
+];
+const PALETTE_STANDARD = [
+  "#C00000", "#FF0000", "#FFC000", "#FFFF00", "#92D050",
+  "#00B050", "#00B0F0", "#0070C0", "#002060", "#7030A0",
+];
+// 각 테마 색의 변형 5행: 밝게 80/60/40%, 어둡게 25/50%
+const PALETTE_SHADES = [
+  ["#FFFFFF", 0.8], ["#FFFFFF", 0.6], ["#FFFFFF", 0.4],
+  ["#000000", 0.25], ["#000000", 0.5],
+];
+
+function hexToRgb(h) {
+  const c = h.replace("#", "");
+  return [parseInt(c.slice(0, 2), 16), parseInt(c.slice(2, 4), 16), parseInt(c.slice(4, 6), 16)];
+}
+function rgbToHex(r, g, b) {
+  const t = (n) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0");
+  return `#${t(r)}${t(g)}${t(b)}`;
+}
+function mixColor(hex, target, ratio) {
+  const a = hexToRgb(hex), b = hexToRgb(target);
+  return rgbToHex(a[0] + (b[0] - a[0]) * ratio, a[1] + (b[1] - a[1]) * ratio, a[2] + (b[2] - a[2]) * ratio);
+}
+function makeSwatch(color) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "tb-swatch-btn";
+  b.dataset.color = color;
+  b.style.background = color;
+  b.title = color;
+  return b;
+}
+function buildColorPalette(palette) {
+  palette.innerHTML = "";
+  const themeLabel = document.createElement("div");
+  themeLabel.className = "tb-pal-label";
+  themeLabel.textContent = "테마 색";
+  const themeGrid = document.createElement("div");
+  themeGrid.className = "tb-pal-grid";
+  PALETTE_THEME.forEach((c) => themeGrid.appendChild(makeSwatch(c)));
+  PALETTE_SHADES.forEach(([target, ratio]) => {
+    PALETTE_THEME.forEach((c) => themeGrid.appendChild(makeSwatch(mixColor(c, target, ratio))));
+  });
+
+  const stdLabel = document.createElement("div");
+  stdLabel.className = "tb-pal-label";
+  stdLabel.textContent = "표준 색";
+  const stdGrid = document.createElement("div");
+  stdGrid.className = "tb-pal-grid";
+  PALETTE_STANDARD.forEach((c) => stdGrid.appendChild(makeSwatch(c)));
+
+  palette.append(themeLabel, themeGrid, stdLabel, stdGrid);
+}
+
 // contenteditable DOM → 인라인 마크업 직렬화
 //   {b}/{i}/{u}/{size=N}/{color=#rrggbb} ... {/...}
 // 줄바꿈은 <br> 또는 <div>/<p> 경계에서 \n으로. 줄바꿈 직전에는 열린 태그를 모두 닫고
@@ -1033,12 +1103,44 @@ function serializeEditor(root) {
   return out.join("");
 }
 
-// "16pt" → 16 (int); 그 외 단위/유효하지 않으면 null
+// "16pt" → 16, "16px" → 12 (px는 pt로 환산: pt = px × 0.75). 그 외 단위/무효는 null
+// 에디터는 px로 표시하지만 PPT는 pt(Pt())를 쓰므로 직렬화 시 px→pt 환산.
 function parseSize(fontSize) {
   if (!fontSize) return null;
-  const m = /^(\d+(?:\.\d+)?)pt$/i.exec(fontSize.trim());
-  if (!m) return null;
-  return Math.round(parseFloat(m[1]));
+  let m = /^(\d+(?:\.\d+)?)px$/i.exec(fontSize.trim());
+  if (m) return Math.round(parseFloat(m[1]) * 0.75);
+  m = /^(\d+(?:\.\d+)?)pt$/i.exec(fontSize.trim());
+  if (m) return Math.round(parseFloat(m[1]));
+  return null;
+}
+
+// 현재 캐럿/선택 위치의 글자 크기(px, 정수)를 계산
+function currentFontSizePx(editor) {
+  const sel = window.getSelection();
+  let node = sel && sel.rangeCount ? sel.getRangeAt(0).startContainer : editor;
+  if (node && node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+  if (!node || !editor.contains(node)) node = editor;
+  return Math.round(parseFloat(window.getComputedStyle(node).fontSize));
+}
+
+// 드롭다운이 현재 글자 크기를 표시하도록 동기화 (목록에 없는 크기는 임시 옵션으로 표시)
+function syncSizeSelect(editor, sel) {
+  const px = String(currentFontSizePx(editor));
+  const custom = sel.querySelector("option[data-custom]");
+  const match = Array.from(sel.options).find((o) => o.value === px && !o.dataset.custom);
+  if (match) {
+    if (custom) custom.remove();
+  } else if (custom) {
+    custom.value = px;
+    custom.textContent = `${px}px`;
+  } else {
+    const o = document.createElement("option");
+    o.dataset.custom = "1";
+    o.value = px;
+    o.textContent = `${px}px`;
+    sel.insertBefore(o, sel.firstChild);
+  }
+  sel.value = px;
 }
 
 // "rgb(192, 0, 0)" / "#c00000" → "#c00000" 정규화; 못 읽으면 null
@@ -1128,6 +1230,70 @@ window.addEventListener("DOMContentLoaded", () => {
       if (e.target.closest("button")) e.preventDefault();
     });
     bar.addEventListener("click", handleToolbarClick);
+
+    // 글자 크기 드롭다운 — select는 열 때 contenteditable selection이 풀리므로
+    // 펼치기 직전(mousedown)에 selection 범위를 저장했다가 적용 시 복원
+    let savedRange = null;
+    bar.querySelectorAll(".tb-size-select").forEach((sel) => {
+      sel.addEventListener("mousedown", () => {
+        const s = window.getSelection();
+        savedRange = s && s.rangeCount ? s.getRangeAt(0).cloneRange() : null;
+      });
+      sel.addEventListener("change", () => {
+        const editor = document.getElementById(bar.dataset.target);
+        if (editor && savedRange) {
+          editor.focus();
+          const s = window.getSelection();
+          s.removeAllRanges();
+          s.addRange(savedRange);
+          if (sel.value) wrapSelectionStyle(editor, { fontSize: `${sel.value}px` });
+        }
+      });
+    });
+
+    // 글자 색 — PPTX 스타일 팔레트 토글 + 적용
+    const picker = bar.querySelector(".tb-colorpicker");
+    if (picker) {
+      const trigger = picker.querySelector(".tb-color-trigger");
+      const palette = picker.querySelector(".tb-color-palette");
+      buildColorPalette(palette);
+      trigger.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const willOpen = palette.hidden;
+        document.querySelectorAll(".tb-color-palette").forEach((p) => (p.hidden = true));
+        palette.hidden = !willOpen;
+      });
+      palette.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const sw = e.target.closest(".tb-swatch-btn");
+        if (!sw) return;
+        const editor = document.getElementById(bar.dataset.target);
+        if (editor) {
+          editor.focus();
+          document.execCommand("styleWithCSS", false, true);
+          document.execCommand("foreColor", false, sw.dataset.color);
+        }
+        trigger.querySelector(".tb-color-line").style.background = sw.dataset.color;
+        palette.hidden = true;
+      });
+    }
+  });
+  // 팔레트 바깥을 클릭하면 닫기
+  document.addEventListener("click", () => {
+    document.querySelectorAll(".tb-color-palette").forEach((p) => (p.hidden = true));
+  });
+
+  // 캐럿/선택이 바뀌면 글자 크기 드롭다운에 현재 px 표시
+  document.addEventListener("selectionchange", () => {
+    const s = window.getSelection();
+    if (!s || s.rangeCount === 0) return;
+    let node = s.getRangeAt(0).startContainer;
+    if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+    const editor = node && node.closest ? node.closest(".rich-edit") : null;
+    if (!editor) return;
+    const bar = document.querySelector(`.rich-toolbar[data-target="${editor.id}"]`);
+    const sizeSel = bar && bar.querySelector(".tb-size-select");
+    if (sizeSel) syncSizeSelect(editor, sizeSel);
   });
   // Enter로 새 줄이 들어올 때 항상 <div>로 감싸지도록 (Firefox 등 호환)
   try { document.execCommand("defaultParagraphSeparator", false, "div"); } catch {}

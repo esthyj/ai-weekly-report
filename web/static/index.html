@@ -42,7 +42,7 @@
       </div>
 
       <div class="tag-input-wrap">
-        <label class="tag-label">검색 기업 키워드 (Enter로 추가, 태그 클릭 또는 ✕로 삭제)</label>
+        <label class="tag-label">검색 기업 키워드 (Enter로 추가, ✕로 삭제)</label>
         <div id="cfg-companies" class="tag-list"></div>
         <input id="cfg-company-input" type="text" placeholder="기업명 입력 후 Enter (예: 삼성화재)" />
         <div class="tag-actions">
@@ -142,46 +142,68 @@
     <!-- Step 7: 최종 확인 -->
     <section id="step-final-review" class="step">
       <h2>최종 확인 · 편집</h2>
-      <p class="hint">단어를 선택한 뒤 툴바로 <b>굵게</b>, <i>이탤릭</i>, <u>밑줄</u>, 글자 크기(10/12/14/16pt), 색상(<span style="color:#FFA94D">연한</span>·<span style="color:#D84315">진한</span> 주황 / 검정) 강조를 적용할 수 있습니다. 섹션(제목 → 요약 → 인사이트) 구분은 화면에 자동 표시되며, PPT 생성 시 그대로 유지됩니다.</p>
+      <p class="hint">단어를 선택한 뒤 툴바로 <b>굵게</b>, <i>이탤릭</i>, <u>밑줄</u>, 글자 크기, 색상 강조를 적용할 수 있습니다. PPT 생성 시 그대로 유지됩니다.</p>
 
       <div class="final-card">
-        <h3>📰 뉴스 요약 (PPT 본문)</h3>
+        <h3>📰국내외 AI 동향</h3>
         <div class="rich-toolbar" data-target="final-news-summary">
           <button type="button" data-cmd="bold" title="굵게 (Ctrl+B)"><b>B</b></button>
           <button type="button" data-cmd="italic" title="이탤릭 (Ctrl+I)"><i>I</i></button>
           <button type="button" data-cmd="underline" title="밑줄 (Ctrl+U)"><u>U</u></button>
           <span class="tb-divider"></span>
-          <button type="button" data-size="10" title="작게 10pt" class="tb-size">작게</button>
-          <button type="button" data-size="12" title="보통 12pt" class="tb-size">보통</button>
-          <button type="button" data-size="14" title="크게 14pt" class="tb-size">크게</button>
-          <button type="button" data-size="16" title="더 크게 16pt" class="tb-size">더 크게</button>
+          <select class="tb-size-select" title="글자 크기">
+            <option value="10">10px</option>
+            <option value="11">11px</option>
+            <option value="12">12px</option>
+            <option value="14">14px</option>
+            <option value="16" selected>16px</option>
+            <option value="18">18px</option>
+            <option value="20">20px</option>
+            <option value="24">24px</option>
+            <option value="28">28px</option>
+            <option value="32">32px</option>
+          </select>
           <span class="tb-divider"></span>
-          <button type="button" data-color="#FFA94D" title="연한 주황" class="tb-color"><span class="tb-swatch" style="background:#FFA94D"></span>연한</button>
-          <button type="button" data-color="#D84315" title="진한 주황" class="tb-color"><span class="tb-swatch" style="background:#D84315"></span>진한</button>
-          <button type="button" data-color="#000000" title="검은색" class="tb-color"><span class="tb-swatch" style="background:#000000"></span>검정</button>
-          <span class="tb-divider"></span>
-          <button type="button" data-cmd="removeFormat" title="선택 영역 서식 모두 제거">서식 제거</button>
+          <div class="tb-colorpicker">
+            <button type="button" class="tb-color-trigger" title="글자 색">
+              <span class="tb-bar">가</span>
+              <span class="tb-color-line" style="background:#000000"></span>
+              <span class="tb-caret">▾</span>
+            </button>
+            <div class="tb-color-palette" hidden></div>
+          </div>
         </div>
         <div id="final-news-summary" class="rich-edit" contenteditable="true" spellcheck="false"></div>
       </div>
 
       <div class="final-card">
-        <h3>🔬 AI Lab 요약 (PPT 후반부)</h3>
+        <h3>🔬 AI Lab</h3>
         <div class="rich-toolbar" data-target="final-ailab-summary">
           <button type="button" data-cmd="bold" title="굵게 (Ctrl+B)"><b>B</b></button>
           <button type="button" data-cmd="italic" title="이탤릭 (Ctrl+I)"><i>I</i></button>
           <button type="button" data-cmd="underline" title="밑줄 (Ctrl+U)"><u>U</u></button>
           <span class="tb-divider"></span>
-          <button type="button" data-size="10" title="작게 10pt" class="tb-size">작게</button>
-          <button type="button" data-size="12" title="보통 12pt" class="tb-size">보통</button>
-          <button type="button" data-size="14" title="크게 14pt" class="tb-size">크게</button>
-          <button type="button" data-size="16" title="더 크게 16pt" class="tb-size">더 크게</button>
+          <select class="tb-size-select" title="글자 크기">
+            <option value="10">10px</option>
+            <option value="11">11px</option>
+            <option value="12">12px</option>
+            <option value="14">14px</option>
+            <option value="16" selected>16px</option>
+            <option value="18">18px</option>
+            <option value="20">20px</option>
+            <option value="24">24px</option>
+            <option value="28">28px</option>
+            <option value="32">32px</option>
+          </select>
           <span class="tb-divider"></span>
-          <button type="button" data-color="#FFA94D" title="연한 주황" class="tb-color"><span class="tb-swatch" style="background:#FFA94D"></span>연한</button>
-          <button type="button" data-color="#D84315" title="진한 주황" class="tb-color"><span class="tb-swatch" style="background:#D84315"></span>진한</button>
-          <button type="button" data-color="#000000" title="검은색" class="tb-color"><span class="tb-swatch" style="background:#000000"></span>검정</button>
-          <span class="tb-divider"></span>
-          <button type="button" data-cmd="removeFormat" title="선택 영역 서식 모두 제거">서식 제거</button>
+          <div class="tb-colorpicker">
+            <button type="button" class="tb-color-trigger" title="글자 색">
+              <span class="tb-bar">가</span>
+              <span class="tb-color-line" style="background:#000000"></span>
+              <span class="tb-caret">▾</span>
+            </button>
+            <div class="tb-color-palette" hidden></div>
+          </div>
         </div>
         <div id="final-ailab-summary" class="rich-edit" contenteditable="true" spellcheck="false"></div>
       </div>
