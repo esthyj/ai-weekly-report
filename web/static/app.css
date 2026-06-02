@@ -691,8 +691,7 @@ td a:hover { text-decoration: underline; }
 .company-row.pending { color: var(--text-muted); }
 .company-row.pending .name { color: var(--text-muted); font-weight: 500; }
 .company-row.searching {
-  background: var(--brand-tint);
-  animation: row-pulse 1.4s ease-in-out infinite;
+  background: #FFE9D8;
 }
 .company-row.done .detail { color: var(--text); }
 .company-row.empty .detail { color: var(--brand-hover); }
@@ -743,9 +742,8 @@ td a:hover { text-decoration: underline; }
 .summarize-row.pending { background: var(--surface-2); }
 .summarize-row.pending .title { color: var(--text-muted); font-weight: 500; }
 .summarize-row.working {
-  background: var(--brand-tint);
+  background: #FFE9D8;
   border-color: var(--brand-mid);
-  animation: row-pulse 1.4s ease-in-out infinite;
 }
 .summarize-row.working .detail { color: var(--brand-hover); font-weight: 700; }
 .summarize-row.done .detail { color: #2f855a; }
@@ -756,11 +754,11 @@ td a:hover { text-decoration: underline; }
 .summarize-row.error .detail { color: #c0492b; }
 .summarize-row .status .spinner {
   display: inline-block;
-  width: 10px; height: 10px;
-  border: 2px solid var(--border-strong);
+  width: 18px; height: 18px;
+  border: 3px solid var(--border-strong);
   border-top-color: var(--brand);
   border-radius: 50%;
-  vertical-align: -1px;
+  vertical-align: -4px;
   animation: spin 0.9s linear infinite;
 }
 
@@ -782,9 +780,6 @@ td a:hover { text-decoration: underline; }
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fff;
-  border-radius: 50%;
-  box-shadow: 0 2px 8px rgba(243, 115, 33, 0.14);
 }
 .spinner-lg {
   display: inline-block;

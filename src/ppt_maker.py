@@ -5,6 +5,7 @@ from typing import Union, Sequence
 from pptx import Presentation
 from pptx.util import Pt
 from pptx.dml.color import RGBColor
+from pptx.enum.text import MSO_AUTO_SIZE, MSO_ANCHOR
 from .config import PPT_TEMPLATE_FILE
 
 ShapePath = Union[int, Sequence[int]]
@@ -195,7 +196,7 @@ def _char_width_em(ch: str) -> float:
 # 채워진 텍스트 프레임이 실제로 차지할 세로 높이를 추정(EMU).
 # word_wrap=True 기준으로 박스 폭에 맞춰 줄바꿈되는 줄 수를 문자 폭 합으로 근사한다.
 # line_factor: 폰트 크기 대비 줄 높이 배율(단일 줄간격 ≈ 1.2~1.25).
-def _estimate_text_frame_height(shape, line_factor: float = 1.25) -> int:
+def _estimate_text_frame_height(shape, line_factor: float = 1.2) -> int:
     tf = shape.text_frame
     avail_pt = (shape.width - tf.margin_left - tf.margin_right) / EMU_PER_PT
     if avail_pt <= 0:
@@ -217,7 +218,7 @@ def _estimate_text_frame_height(shape, line_factor: float = 1.25) -> int:
 # 도형 높이를 텍스트 양에 맞춰 동적으로 조절한다.
 # 본문 정렬이 MIDDLE 이므로 위·아래로 대칭적인 약간의 여유(padding)가 생긴다.
 # (그룹 자식이라도 chExt==ext 라 cy 가 곧 렌더링 높이.)
-def autosize_shape_height(shape, padding=Pt(3)):
+def autosize_shape_height(shape, padding=Pt(0)):
     tf = shape.text_frame
     content = _estimate_text_frame_height(shape)
     shape.height = int(content + tf.margin_top + tf.margin_bottom + padding)
@@ -262,6 +263,14 @@ def set_textbox_from_summarizedtxt(prs: Presentation, text: str,
     tf = shape.text_frame
     tf.clear()
 
+    # PowerPoint 네이티브 auto-fit: 카드가 텍스트 높이에 정확히 밀착되도록(spAutoFit).
+    # 두 본문 박스가 동일 엔진으로 크기 조정되어 내부 여백이 통일된다.
+    tf.word_wrap = True
+    tf.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+    # 세로 정렬을 TOP으로: 추정 높이가 실제 렌더보다 조금 커도 그 여유가 위·아래로
+    # 나뉘지 않고 아래쪽으로만 가게 해, 본문이 항상 카드 상단(상여백 3.6pt)에 밀착된다.
+    tf.vertical_anchor = MSO_ANCHOR.TOP
+
     # Return (tag, content) list
     sections = parse_sections(text)
 
@@ -271,7 +280,7 @@ def set_textbox_from_summarizedtxt(prs: Presentation, text: str,
         return
 
     first_para_used = False
-    for tag, content in sections:
+    for i, (tag, content) in enumerate(sections):
         # Find the style for the tag
         prefix, font_name, font_size, underline, split = get_tag_style(tag)
         lines = [ln.strip() for ln in content.splitlines() if ln.strip()] if split else [content.strip()]
@@ -288,7 +297,9 @@ def set_textbox_from_summarizedtxt(prs: Presentation, text: str,
             for seg, overrides in parse_inline(line):
                 add_run_with_overrides(p, seg, font_name, font_size, underline, overrides)
 
-        if tag == "insight":
+        # insight 뒤 간격용 빈 줄 — 기사 사이 간격용이므로 마지막 섹션에는 넣지 않음
+        # (끝 빈 줄이 MIDDLE 정렬에서 아래쪽 여백처럼 보이는 것을 방지)
+        if tag == "insight" and i < len(sections) - 1:
             add_styled_run(tf.add_paragraph(), " ", "한화고딕 EL", 9)
 
     autosize_shape_height(shape)
