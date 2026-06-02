@@ -49,6 +49,9 @@ class SessionState:
     ailab_text: Optional[str] = None
     ppt_path: Optional[str] = None
 
+    # 최종검토에서 기사별로 생성한 이미지 경로 (기사 인덱스 0-base → PNG 경로)
+    article_images: dict[int, str] = field(default_factory=dict)
+
 
 class SessionStore:
     """동시 접근을 lock으로 보호하는 세션 저장소."""

@@ -896,3 +896,63 @@ td a:hover { text-decoration: underline; }
   font-size: 15px;
   white-space: pre-wrap;
 }
+
+/* ============================================================
+   기사별 이미지 패널 (최종 확인)
+   ============================================================ */
+.article-images-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.article-image-row {
+  border: 1px solid #e3e0db;
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: #fafafa;
+}
+.article-image-row .ai-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.article-image-row .ai-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.article-image-row .ai-gen-btn {
+  padding: 6px 14px;
+  font-size: 15px;
+}
+.article-image-row .ai-status {
+  font-size: 14px;
+  color: #6c6a67;
+}
+.article-image-row .ai-include {
+  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+.article-image-row .ai-preview {
+  display: block;
+  margin-top: 10px;
+  width: 160px;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+}
+/* 생성 전에는 미리보기 칸 자체를 숨김 (display:block 이 hidden 속성을 덮어쓰지 않도록) */
+.article-image-row .ai-preview[hidden] {
+  display: none;
+}
+
+/* 전체 선택/해제 버튼 툴바 (기사 선택 · 요약 선택) — 체크박스 열 위(좌측)에 배치 */
+.select-toolbar {
+  display: flex;
+  justify-content: flex-start;
+  margin: 6px 0 10px;
+}

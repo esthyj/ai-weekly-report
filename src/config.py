@@ -11,6 +11,8 @@ PROJECT_ROOT = Path(__file__).parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 OUTPUT_DIR = PROJECT_ROOT / "output"
 TEMPLATES_DIR = PROJECT_ROOT / "templates"
+# 기사별 AI 생성 이미지 저장 위치
+IMAGES_DIR = OUTPUT_DIR / "images"
 
 # Specific file paths
 SELECTED_NEWS_FILE = OUTPUT_DIR / "selected_news.xlsx"
@@ -19,6 +21,7 @@ PPT_TEMPLATE_FILE = TEMPLATES_DIR / "AIWeeklyReport_format.pptx"
 def ensure_directories() -> None:
     """필수 디렉토리 검증 + 출력 디렉토리 생성. 누락 시 sys.exit."""
     OUTPUT_DIR.mkdir(exist_ok=True)
+    IMAGES_DIR.mkdir(exist_ok=True)
 
     if not DATA_DIR.exists():
         print(f"❌ 오류: 필수 디렉토리가 없습니다: {DATA_DIR}")

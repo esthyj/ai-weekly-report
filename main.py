@@ -2,10 +2,11 @@ import sys
 from datetime import datetime
 
 from src.ailab_summarize import ailab_summarized
-from src.config import OUTPUT_DIR, PPT_TEMPLATE_FILE, ensure_directories
+from src.config import IMAGES_DIR, OUTPUT_DIR, PPT_TEMPLATE_FILE, ensure_directories
+from src.image_generator import generate_image
 from src.news_crawler import crawl_news, prompt_crawler_settings, select_articles
 from src.news_summarize import summarize_articles
-from src.ppt_maker import create_report
+from src.ppt_maker import create_report, parse_sections, split_articles
 
 
 def prompt_ailab_content() -> str:
@@ -28,6 +29,60 @@ def prompt_ailab_content() -> str:
             break
         lines.append(line)
     return "\n".join(lines)
+
+
+def _article_title(block: str) -> str:
+    """기사 블록에서 [Title] 텍스트를 추출(없으면 앞부분)."""
+    for tag, content in parse_sections(block):
+        if tag == "title":
+            return content.strip()
+    return block.strip()[:40]
+
+
+def prompt_article_images(summary_text: str):
+    """확정된 뉴스 요약을 기사별로 순회하며 이미지를 생성/선택받는다.
+
+    반환: 기사 순서에 맞춘 이미지 경로(또는 None) 리스트.
+    각 기사: 이미지 추가 여부(y/n) → 생성 후 포함(y)/제외(n)/재생성(r).
+    """
+    blocks = split_articles(summary_text)
+    print("\n" + "=" * 60)
+    print("🖼️  기사별 이미지 추가 (최종검토)")
+    print("=" * 60)
+    print("각 기사에 AI 생성 이미지를 우측에 넣을 수 있습니다.")
+    print("이미지에는 글자가 들어가지 않도록 생성됩니다.\n")
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    images: list = []
+
+    for idx, block in enumerate(blocks):
+        title = _article_title(block)
+        print("-" * 60)
+        print(f"[{idx + 1}/{len(blocks)}] {title}")
+        add = input("이 기사에 이미지를 추가할까요? [y/N]: ").strip().lower()
+        if add not in ("y", "yes"):
+            images.append(None)
+            continue
+
+        out_path = IMAGES_DIR / f"article_{idx + 1}_{timestamp}.png"
+        chosen = None
+        while True:
+            print("  🎨 이미지 생성 중... (수십 초 소요될 수 있습니다)")
+            result = generate_image(block, out_path)
+            if not result:
+                print("  ❌ 이미지 생성에 실패했습니다. 이 기사는 이미지 없이 진행합니다.")
+                break
+            print(f"  ✅ 생성 완료. 파일을 열어 확인하세요: {result}")
+            decision = input("  포함[y] / 제외[n] / 재생성[r]: ").strip().lower()
+            if decision in ("", "y", "yes"):
+                chosen = str(result)
+                break
+            if decision in ("n", "no"):
+                break
+            # "r" 등 → 재생성 루프
+        images.append(chosen)
+
+    return images
 
 
 def prompt_review_decision() -> str:
@@ -101,6 +156,9 @@ def main():
                     return
             # "resummarize"는 while 한 바퀴 돌며 summarize_articles 재호출
 
+        # 2.7단계: 기사별 이미지 생성/선택
+        news_images = prompt_article_images(summary_text)
+
         # 3단계: AI Lab 콘텐츠 입력 + 요약
         ailab_content = prompt_ailab_content()
 
@@ -125,6 +183,7 @@ def main():
             date=date,
             text1=summary_text,
             text2=ailab_text,
+            news_images=news_images,
         )
 
         print("\n" + "=" * 60)

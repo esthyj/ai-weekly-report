@@ -3,7 +3,7 @@ import math
 from pathlib import Path
 from typing import Union, Sequence
 from pptx import Presentation
-from pptx.util import Pt
+from pptx.util import Pt, Inches
 from pptx.dml.color import RGBColor
 from pptx.enum.text import MSO_AUTO_SIZE, MSO_ANCHOR
 from .config import PPT_TEMPLATE_FILE
@@ -248,35 +248,14 @@ def set_number_and_date(prs: Presentation, number: str, date: str,
     add_styled_run(p, combined_text, "한화고딕 L", 11, color=RGBColor(0x6C, 0x6A, 0x67))
 
 
-# Insert summarized text structured with tag-specific styles
-def set_textbox_from_summarizedtxt(prs: Presentation, text: str,
-                                    shape_index: ShapePath = NEWS_SHAPE_INDEX, slide_index: int = 0):
-    # Find specific index shape
-    _, shape = find_shape_by_index(prs, shape_index, slide_index)
-    
-    if not shape:
-        raise ValueError(f'슬라이드 {slide_index}의 {shape_index}번째 shape을 찾지 못했습니다.')
-    if not shape.has_text_frame:
-        raise ValueError(f'{shape_index}번째 shape에 text_frame이 없습니다.')
-
-    # Clear existing text frame
-    tf = shape.text_frame
-    tf.clear()
-
-    # PowerPoint 네이티브 auto-fit: 카드가 텍스트 높이에 정확히 밀착되도록(spAutoFit).
-    # 두 본문 박스가 동일 엔진으로 크기 조정되어 내부 여백이 통일된다.
-    tf.word_wrap = True
-    tf.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
-    # 세로 정렬을 TOP으로: 추정 높이가 실제 렌더보다 조금 커도 그 여유가 위·아래로
-    # 나뉘지 않고 아래쪽으로만 가게 해, 본문이 항상 카드 상단(상여백 3.6pt)에 밀착된다.
-    tf.vertical_anchor = MSO_ANCHOR.TOP
-
-    # Return (tag, content) list
+# 태그 섹션([Title]/[Summary]/[Insight])을 text_frame 에 렌더링한다.
+# tf.clear()/word_wrap/auto_size/vertical_anchor 설정과 높이 autosize 는 호출자 책임.
+# add_inter_article_gap: insight 뒤(마지막 섹션 제외)에 기사 간격용 빈 줄을 넣을지.
+def _fill_text_frame(tf, text: str, add_inter_article_gap: bool = True):
     sections = parse_sections(text)
 
     if not sections:
         add_styled_run(tf.paragraphs[0], text.strip(), "한화고딕 EL", 12)
-        autosize_shape_height(shape)
         return
 
     first_para_used = False
@@ -299,10 +278,150 @@ def set_textbox_from_summarizedtxt(prs: Presentation, text: str,
 
         # insight 뒤 간격용 빈 줄 — 기사 사이 간격용이므로 마지막 섹션에는 넣지 않음
         # (끝 빈 줄이 MIDDLE 정렬에서 아래쪽 여백처럼 보이는 것을 방지)
-        if tag == "insight" and i < len(sections) - 1:
+        if add_inter_article_gap and tag == "insight" and i < len(sections) - 1:
             add_styled_run(tf.add_paragraph(), " ", "한화고딕 EL", 9)
 
+
+# Insert summarized text structured with tag-specific styles
+def set_textbox_from_summarizedtxt(prs: Presentation, text: str,
+                                    shape_index: ShapePath = NEWS_SHAPE_INDEX, slide_index: int = 0):
+    # Find specific index shape
+    _, shape = find_shape_by_index(prs, shape_index, slide_index)
+
+    if not shape:
+        raise ValueError(f'슬라이드 {slide_index}의 {shape_index}번째 shape을 찾지 못했습니다.')
+    if not shape.has_text_frame:
+        raise ValueError(f'{shape_index}번째 shape에 text_frame이 없습니다.')
+
+    # Clear existing text frame
+    tf = shape.text_frame
+    tf.clear()
+
+    # PowerPoint 네이티브 auto-fit: 카드가 텍스트 높이에 정확히 밀착되도록(spAutoFit).
+    # 두 본문 박스가 동일 엔진으로 크기 조정되어 내부 여백이 통일된다.
+    tf.word_wrap = True
+    tf.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+    # 세로 정렬을 TOP으로: 추정 높이가 실제 렌더보다 조금 커도 그 여유가 위·아래로
+    # 나뉘지 않고 아래쪽으로만 가게 해, 본문이 항상 카드 상단(상여백 3.6pt)에 밀착된다.
+    tf.vertical_anchor = MSO_ANCHOR.TOP
+
+    _fill_text_frame(tf, text)
     autosize_shape_height(shape)
+
+
+# 뉴스 본문을 [Title] 기준으로 기사 블록 단위로 분리한다(앞 태그 포함).
+# CLI·웹 백엔드 공통 사용. [Title] 이 없으면 전체를 한 블록으로 취급.
+def split_articles(news_text: str):
+    matches = list(re.finditer(r'\[Title\]', news_text, re.IGNORECASE))
+    if not matches:
+        stripped = news_text.strip()
+        return [stripped] if stripped else []
+    blocks = []
+    for i, m in enumerate(matches):
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(news_text)
+        block = news_text[m.start():end].strip()
+        if block:
+            blocks.append(block)
+    return blocks
+
+
+# 뉴스 본문을 기사별 행으로 렌더링하고, 이미지가 지정된 기사는 우측에 그림을 배치한다.
+# images: 기사 순서에 맞춘 (경로 또는 None) 시퀀스. 카드 배경 도형은 그대로 두고
+# 그 위에 슬라이드 레벨 텍스트박스/그림을 겹쳐 그린다.
+NEWS_IMG_WIDTH = Inches(1.6)   # 우측 이미지 칼럼 폭
+NEWS_IMG_GAP = Inches(0.12)    # 텍스트와 이미지 사이 간격
+NEWS_ROW_GAP = Pt(12)          # 기사(행) 사이 세로 간격 ≈ 엔터 한 칸(한 줄)
+NEWS_CARD_BOTTOM_PAD = Pt(6)   # 뉴스 카드 하단 여백(콘텐츠에 맞춰 축소할 때)
+AILAB_GAP = Pt(10)             # 뉴스 카드 아래 ~ AI Lab 시작 사이 간격(작게)
+
+
+def set_news_articles_with_images(prs: Presentation, news_text: str, images,
+                                  shape_index: ShapePath = NEWS_SHAPE_INDEX, slide_index: int = 0):
+    slide, card = find_shape_by_index(prs, shape_index, slide_index)
+    if not card:
+        raise ValueError(f'슬라이드 {slide_index}의 {shape_index}번째 shape을 찾지 못했습니다.')
+    if not card.has_text_frame:
+        raise ValueError(f'{shape_index}번째 shape에 text_frame이 없습니다.')
+
+    # 카드 텍스트는 비우고 배경(카드 fill)만 남긴다.
+    # auto_size 를 NONE 으로 고정 — 빈 텍스트로 인해 카드(배경)가 줄어드는 것 방지.
+    card.text_frame.clear()
+    card.text_frame.auto_size = MSO_AUTO_SIZE.NONE
+
+    blocks = split_articles(news_text)
+    images = list(images or [])
+
+    # 레이아웃 영역 — 카드의 내부 여백을 그대로 사용해 기존 본문과 좌측 정렬을 맞춘다.
+    ctf = card.text_frame
+    region_left = card.left + ctf.margin_left
+    region_top = card.top + ctf.margin_top
+    region_width = card.width - ctf.margin_left - ctf.margin_right
+    card_bottom = card.top + card.height
+
+    cur_top = region_top
+    for idx, block in enumerate(blocks):
+        img_path = images[idx] if idx < len(images) else None
+        has_img = bool(img_path)
+        text_w = region_width - (NEWS_IMG_WIDTH + NEWS_IMG_GAP) if has_img else region_width
+
+        tb = slide.shapes.add_textbox(int(region_left), int(cur_top), int(text_w), Pt(20))
+        tf = tb.text_frame
+        tf.word_wrap = True
+        tf.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+        tf.vertical_anchor = MSO_ANCHOR.TOP
+        # 슬라이드 텍스트박스 기본 여백 제거 → region_left 에 본문이 밀착, 높이 추정도 폭과 일치
+        tf.margin_left = 0
+        tf.margin_right = 0
+        tf.margin_top = 0
+        tf.margin_bottom = 0
+
+        # 기사 단위 렌더 — 기사 내부엔 기사 간격 빈 줄이 필요 없다.
+        _fill_text_frame(tf, block, add_inter_article_gap=False)
+        text_h = _estimate_text_frame_height(tb)
+        tb.height = text_h
+
+        if has_img:
+            # 이미지를 기사 본문 높이에 맞춘 정사각형으로(우측 정렬) 배치.
+            # 고정 높이(1.6in)로 두면 짧은 본문에서 이미지가 본문보다 커져 다음 기사가
+            # 밀려나며 간격이 크게 벌어지므로, 본문 높이로 캡을 씌워 행 높이를 본문 기준으로 유지.
+            img_size = min(int(NEWS_IMG_WIDTH), int(text_h))
+            slide.shapes.add_picture(
+                str(img_path),
+                int(region_left + region_width - img_size),
+                int(cur_top),
+                width=img_size,
+                height=img_size,
+            )
+
+        # 다음 기사는 본문 높이 + 한 줄 간격만큼 아래에서 시작 (기사 간격 ≈ 엔터 한 칸)
+        cur_top += text_h + NEWS_ROW_GAP
+
+    # 카드(배경) 높이를 실제 콘텐츠에 맞춰 축소 → AI Lab 이 바로 아래에 붙을 수 있게 한다.
+    content_bottom = cur_top - NEWS_ROW_GAP  # 마지막 기사 뒤 간격은 제외
+    new_card_h = int(content_bottom + NEWS_CARD_BOTTOM_PAD - card.top)
+    if new_card_h > 0:
+        card.height = new_card_h
+
+    if content_bottom > card_bottom:
+        print(f"  ⚠️ 뉴스 본문이 템플릿 카드 영역을 초과했습니다(기사 수/이미지 과다). "
+              f"넘침: {(content_bottom - card_bottom) / EMU_PER_PT:.0f}pt")
+
+
+# AI Lab 그룹(헤더 'AI Lab' + 본문 카드)을 뉴스 카드 바로 아래로 이동시킨다.
+# 뉴스 콘텐츠가 짧아 카드가 줄어든 만큼 AI Lab 도 위로 끌어올려 빈 공간을 없앤다.
+def position_ailab_below_news(prs: Presentation, slide_index: int = 0, gap=AILAB_GAP):
+    _, news_card = find_shape_by_index(prs, NEWS_SHAPE_INDEX, slide_index)
+    if not news_card:
+        return
+    news_bottom = news_card.top + news_card.height
+
+    # AILAB_SHAPE_INDEX 의 최상위 인덱스가 AI Lab 그룹(=이동 대상).
+    group_idx = AILAB_SHAPE_INDEX[0] if not isinstance(AILAB_SHAPE_INDEX, int) else AILAB_SHAPE_INDEX
+    _, ailab_group = find_shape_by_index(prs, group_idx, slide_index)
+    if not ailab_group:
+        return
+    # 그룹 top 을 옮기면 자식(헤더+본문)이 함께 이동한다.
+    ailab_group.top = int(news_bottom + gap)
 
 
 # ============================================================
@@ -310,23 +429,31 @@ def set_textbox_from_summarizedtxt(prs: Presentation, text: str,
 # ============================================================
 # Create Report PPTX
 def create_report(pptx_in: str, pptx_out: str, number: str, date: str,
-                  text1: str, text2: str):
+                  text1: str, text2: str, news_images=None):
 
     # Check if template file exists
     if not Path(pptx_in).exists():
         raise FileNotFoundError(f"❌ PPT 템플릿 파일을 찾을 수 없습니다: {pptx_in}")
 
     prs = Presentation(pptx_in)
-    
+
     # Step 1: Enter number of the report and date.
     set_number_and_date(prs, number, date, shape_index=META_SHAPE_INDEX, slide_index=0)
 
     # Step 2: Enter first summary text
-    set_textbox_from_summarizedtxt(prs, text1, shape_index=NEWS_SHAPE_INDEX, slide_index=0)
+    # 기사별 이미지가 하나라도 있으면 기사 행 단위로 렌더(텍스트=좌/이미지=우),
+    # 없으면 기존 단일 텍스트박스 경로 그대로(하위 호환).
+    if news_images and any(news_images):
+        set_news_articles_with_images(prs, text1, news_images, shape_index=NEWS_SHAPE_INDEX, slide_index=0)
+    else:
+        set_textbox_from_summarizedtxt(prs, text1, shape_index=NEWS_SHAPE_INDEX, slide_index=0)
 
     # Step 3: Enter second summary text
     set_textbox_from_summarizedtxt(prs, text2, shape_index=AILAB_SHAPE_INDEX, slide_index=0)
-    
+
+    # Step 4: AI Lab 을 '국내외 AI 동향' 카드 바로 아래로 이동 (빈 공간 최소화)
+    position_ailab_below_news(prs, slide_index=0)
+
     # Save
     prs.save(pptx_out)
     print(f"  💾 {pptx_out} 저장 완료!")
@@ -351,8 +478,21 @@ if __name__ == "__main__":
 
     list_all_shapes(str(PPT_TEMPLATE_FILE))
 
-    test_text1 = '''[Title] 테스트 제목 [Summary1] 요약1 내용 [Summary2] 요약2 내용 [Summary3] 요약3 내용 [Insight] 인사이트 내용'''
+    test_text1 = (
+        "[Title] 삼성화재 AI 보험금 자동심사 도입 "
+        "[Summary1] 머신러닝으로 청구 서류를 자동 분석해 처리 시간을 단축함 "
+        "[Summary2] 사기 청구 탐지 정확도도 향상됨 "
+        "[Insight] 보험사 업무 자동화로 운영 효율 개선 기대\n\n"
+        "[Title] 현대해상, 생성형 AI 상담 챗봇 출시 "
+        "[Summary1] 고객 문의를 24시간 응대하는 챗봇을 도입함 "
+        "[Insight] 상담 인력 부담 완화 및 응대 품질 표준화"
+    )
     test_text2 = '''[Title] AI Lab 테스트 [Summary1] AI Lab 요약1 [Summary2] AI Lab 요약2 [Insight] AI Lab 인사이트'''
+
+    # 첫 기사에만 샘플 이미지를 넣어 기사 행 단위 + 우측 이미지 배치를 검증
+    from .config import IMAGES_DIR
+    sample_img = IMAGES_DIR / "test_sample.png"
+    news_images = [str(sample_img) if sample_img.exists() else None, None]
 
     create_report(
         pptx_in=str(PPT_TEMPLATE_FILE),
@@ -360,5 +500,6 @@ if __name__ == "__main__":
         number="테스트",
         date="2025년 1월 1일",
         text1=test_text1,
-        text2=test_text2
+        text2=test_text2,
+        news_images=news_images,
     )

@@ -6,7 +6,7 @@ from .llm_client import call_llm
 # Configuration Constants
 # ============================================================
 
-MODEL_NAME = "claude-sonnet-4-6"
+MODEL_NAME = "claude-opus-4-8"
 MAX_TOKENS = 1024
 TEMPERATURE = 0.3
 

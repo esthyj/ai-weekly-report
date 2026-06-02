@@ -9,7 +9,7 @@ ProgressCb = Callable[[str], None]
 # Configuration Constants
 # ============================================================
 
-MODEL_NAME = "claude-sonnet-4-6"
+MODEL_NAME = "claude-opus-4-8"
 MAX_TOKENS = 2048
 TEMPERATURE = 0.3
 
@@ -33,7 +33,7 @@ USER_PROMPT_TEMPLATE = """
     5. For [Title], use the original title provided below EXACTLY as-is. Do NOT modify, translate, or rephrase it.
     6. For [Summary], [Insight], end sentences with noun-ending forms like "~임", "~함", "~있음" instead of formal endings like "~입니다", "~합니다", "~있습니다"
     7. In insight, when referring to "our company" in Korean, use "당사".
-    8. Please write each [Summary] and [Insight] between 100 and 200 characters.
+    8. Please write each [Summary] and [Insight] between 80 and 120 characters.
     9. Avoid redundancy: [Title], [Summary], and [Insight] must each contain unique information without overlapping content or repeating the same expressions.
 
     <original_title>

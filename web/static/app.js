@@ -17,6 +17,8 @@ const state = {
   // 최종 확인 단계에서 사용자가 편집을 되돌릴 수 있도록 서버 원본을 보관
   originalNewsSummary: "",
   originalAilabText: "",
+  // 기사별 이미지 패널 — [Title] 기준으로 분리한 기사 블록 텍스트
+  articleTexts: [],
 };
 
 const INSURANCE_PRESET = [
@@ -613,6 +615,35 @@ async function startCrawl() {
   }
 }
 
+// ============================================================
+// 전체 선택/해제 토글 (기사 선택 · 요약 선택 공용)
+// ============================================================
+function allCheckboxesChecked(containerSelector) {
+  const boxes = document.querySelectorAll(`${containerSelector} input[type=checkbox]`);
+  return boxes.length > 0 && Array.from(boxes).every((b) => b.checked);
+}
+
+// 컨테이너 내 모든 체크박스를 한 번에 켜고/끄기. 이미 전부 켜져 있으면 전체 해제.
+// 각 체크박스에 change 이벤트를 보내 기존 리스너(카드 스타일 등)도 함께 갱신.
+function toggleSelectAll(containerSelector) {
+  const boxes = Array.from(document.querySelectorAll(`${containerSelector} input[type=checkbox]`));
+  if (!boxes.length) return;
+  const next = !boxes.every((b) => b.checked);
+  boxes.forEach((b) => {
+    if (b.checked !== next) {
+      b.checked = next;
+      b.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  });
+}
+
+// 버튼 라벨을 현재 선택 상태에 맞춰 "전체 선택" ↔ "전체 해제" 로 동기화.
+function syncSelectAllBtn(containerSelector, btnId) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.textContent = allCheckboxesChecked(containerSelector) ? "전체 해제" : "전체 선택";
+}
+
 function renderArticles() {
   const tbody = document.querySelector("#articles-table tbody");
   tbody.innerHTML = "";
@@ -629,6 +660,7 @@ function renderArticles() {
     `;
     tbody.appendChild(tr);
   });
+  syncSelectAllBtn("#articles-table", "btn-select-all-articles");
 }
 
 async function startSummarize() {
@@ -721,6 +753,7 @@ function renderSummaries() {
     });
     wrap.appendChild(card);
   });
+  syncSelectAllBtn("#summaries-list", "btn-select-all-summaries");
 }
 
 async function accept() {
@@ -768,6 +801,7 @@ async function summarizeAilab() {
     state.originalAilabText = ailab_text;
     show("final-review");
     setFinalReviewContent(combined_summary, ailab_text);
+    buildArticleImagePanel(combined_summary);
   } catch (e) {
     showError(e.message);
   }
@@ -788,9 +822,14 @@ async function confirmAndGeneratePpt() {
   btn.disabled = true;
   btn.textContent = "PPT 생성 중...";
   try {
+    const includedImageIndices = Array.from(
+      document.querySelectorAll("#article-images-list .ai-include-cb:checked")
+    ).map((el) => parseInt(el.closest(".article-image-row").dataset.idx, 10));
+
     await api("POST", `/api/${state.sessionId}/ppt`, {
       combined_summary: combined,
       ailab_text: ailab,
+      included_image_indices: includedImageIndices,
     });
     document.getElementById("btn-download").href = `/api/${state.sessionId}/download`;
     show("done");
@@ -814,6 +853,102 @@ function setFinalReviewContent(combinedSummary, ailabText) {
 function resetEdits() {
   if (!confirm("편집한 내용을 모두 버리고 AI가 생성한 원본으로 되돌릴까요?")) return;
   setFinalReviewContent(state.originalNewsSummary, state.originalAilabText);
+}
+
+// ============================================================
+// 기사별 이미지 패널 (최종 확인)
+// ============================================================
+
+// combined summary 를 [Title] 기준 기사 블록으로 분리 (서버 split_articles 와 동일 규칙)
+function splitArticlesByTitle(text) {
+  if (!text) return [];
+  const matches = [...text.matchAll(/\[Title\]/gi)];
+  if (matches.length === 0) {
+    const t = text.trim();
+    return t ? [t] : [];
+  }
+  return matches
+    .map((m, i) => {
+      const end = i + 1 < matches.length ? matches[i + 1].index : text.length;
+      return text.slice(m.index, end).trim();
+    })
+    .filter(Boolean);
+}
+
+function articleTitleOf(block) {
+  const m = /\[Title\]\s*([^\[\n]*)/i.exec(block);
+  return (m && m[1].trim()) || block.trim().slice(0, 40);
+}
+
+function buildArticleImagePanel(combinedSummary) {
+  const wrap = document.getElementById("article-images-list");
+  wrap.innerHTML = "";
+  state.articleTexts = splitArticlesByTitle(combinedSummary);
+
+  state.articleTexts.forEach((block, idx) => {
+    const row = document.createElement("div");
+    row.className = "article-image-row";
+    row.dataset.idx = String(idx);
+
+    const title = document.createElement("div");
+    title.className = "ai-title";
+    title.textContent = `${idx + 1}. ${articleTitleOf(block)}`;
+
+    const controls = document.createElement("div");
+    controls.className = "ai-controls";
+
+    const genBtn = document.createElement("button");
+    genBtn.type = "button";
+    genBtn.className = "ai-gen-btn";
+    genBtn.textContent = "이미지 생성";
+    genBtn.addEventListener("click", () => generateArticleImage(idx, genBtn));
+
+    const status = document.createElement("span");
+    status.className = "ai-status";
+
+    const label = document.createElement("label");
+    label.className = "ai-include";
+    label.innerHTML = `<input type="checkbox" class="ai-include-cb" disabled /> 포함`;
+
+    controls.append(genBtn, status, label);
+
+    const img = document.createElement("img");
+    img.className = "ai-preview";
+    img.alt = "생성된 이미지 미리보기";
+    img.hidden = true;
+
+    row.append(title, controls, img);
+    wrap.appendChild(row);
+  });
+}
+
+async function generateArticleImage(idx, btn) {
+  const row = document.querySelector(`.article-image-row[data-idx="${idx}"]`);
+  const status = row.querySelector(".ai-status");
+  const img = row.querySelector(".ai-preview");
+  const cb = row.querySelector(".ai-include-cb");
+
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "생성 중...";
+  status.textContent = "🎨 이미지 생성 중... (수십 초 소요될 수 있습니다)";
+  try {
+    const { url } = await api("POST", `/api/${state.sessionId}/article-image`, {
+      article_index: idx,
+      article_text: state.articleTexts[idx],
+    });
+    img.src = url;
+    img.hidden = false;
+    cb.disabled = false;
+    cb.checked = true;
+    status.textContent = "✅ 생성 완료";
+    btn.textContent = "재생성";
+  } catch (e) {
+    status.textContent = `❌ 생성 실패: ${e.message}`;
+    btn.textContent = original;
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // ============================================================
@@ -1200,6 +1335,8 @@ function restart() {
   state.originalAilabText = "";
   document.getElementById("final-news-summary").innerHTML = "";
   document.getElementById("final-ailab-summary").innerHTML = "";
+  document.getElementById("article-images-list").innerHTML = "";
+  state.articleTexts = [];
   document.getElementById("meta-number").value = "";
   document.getElementById("meta-date").value = "";
   document.getElementById("cfg-keyword").value = "";
@@ -1217,6 +1354,16 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("btn-start").addEventListener("click", startCrawl);
   document.getElementById("btn-summarize").addEventListener("click", startSummarize);
   document.getElementById("btn-accept").addEventListener("click", accept);
+
+  // 전체 선택/해제 — 기사 선택, 요약 선택
+  document.getElementById("btn-select-all-articles")
+    .addEventListener("click", () => toggleSelectAll("#articles-table"));
+  document.getElementById("articles-table")
+    .addEventListener("change", () => syncSelectAllBtn("#articles-table", "btn-select-all-articles"));
+  document.getElementById("btn-select-all-summaries")
+    .addEventListener("click", () => toggleSelectAll("#summaries-list"));
+  document.getElementById("summaries-list")
+    .addEventListener("change", () => syncSelectAllBtn("#summaries-list", "btn-select-all-summaries"));
   document.getElementById("btn-resummarize").addEventListener("click", resummarize);
   document.getElementById("btn-reselect").addEventListener("click", reselect);
   document.getElementById("btn-generate-ppt").addEventListener("click", summarizeAilab);

@@ -24,10 +24,11 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from src.ailab_summarize import ailab_summarized
-from src.config import OUTPUT_DIR, PPT_TEMPLATE_FILE, ensure_directories
+from src.config import IMAGES_DIR, OUTPUT_DIR, PPT_TEMPLATE_FILE, ensure_directories
+from src.image_generator import generate_image
 from src.news_crawler import CrawlerConfig, crawl_news, select_articles_by_indices
 from src.news_summarize import combine_summaries, generate_summaries
-from src.ppt_maker import create_report
+from src.ppt_maker import create_report, split_articles
 from src.session_store import SessionState, StageState, store
 
 load_dotenv()
@@ -133,9 +134,15 @@ class AilabBody(BaseModel):
     ailab_content: str
 
 
+class ArticleImageBody(BaseModel):
+    article_index: int
+    article_text: str
+
+
 class PptBody(BaseModel):
     combined_summary: str
     ailab_text: str
+    included_image_indices: list[int] = []
 
 
 # ============================================================
@@ -319,6 +326,37 @@ def get_final_content(sid: str):
     }
 
 
+@app.post("/api/{sid}/article-image")
+def generate_article_image(sid: str, body: ArticleImageBody):
+    """특정 기사에 대한 AI 이미지를 생성하고 미리보기 URL을 반환(동기)."""
+    session = _require(sid)
+    if body.article_index < 0:
+        raise HTTPException(400, detail="잘못된 기사 인덱스입니다.")
+    if len(body.article_text.strip()) < 5:
+        raise HTTPException(400, detail="기사 내용이 비어 있습니다.")
+
+    out_path = IMAGES_DIR / f"{sid}_{body.article_index}.png"
+    result = generate_image(body.article_text, out_path)
+    if not result:
+        raise HTTPException(502, detail="이미지 생성에 실패했습니다. (API 키/권한 또는 일시적 오류)")
+
+    session.article_images[body.article_index] = str(result)
+    # 캐시 무력화를 위해 mtime 을 쿼리스트링으로 덧붙임
+    return {"url": f"/api/{sid}/article-image/{body.article_index}?t={int(result.stat().st_mtime)}"}
+
+
+@app.get("/api/{sid}/article-image/{idx}")
+def get_article_image(sid: str, idx: int):
+    session = _require(sid)
+    path = session.article_images.get(idx)
+    if not path or not Path(path).exists():
+        raise HTTPException(404, detail="이미지를 찾을 수 없습니다.")
+    # 모델에 따라 PNG/JPEG 가 올 수 있어 매직 바이트로 실제 타입을 판별해 서빙.
+    head = Path(path).read_bytes()[:3]
+    media_type = "image/jpeg" if head == b"\xff\xd8\xff" else "image/png"
+    return FileResponse(path, media_type=media_type)
+
+
 @app.post("/api/{sid}/ppt")
 def generate_ppt(sid: str, body: PptBody):
     """최종 확인 페이지에서 사용자가 (편집한) 본문을 보내면 그대로 PPT에 반영."""
@@ -335,6 +373,15 @@ def generate_ppt(sid: str, body: PptBody):
     session.combined_summary = combined
     session.ailab_text = ailab
 
+    # 포함하기로 선택한 기사 인덱스 → 기사 순서에 맞춘 이미지 경로 리스트 구성.
+    # 최종(편집 후) 본문을 기준으로 기사 블록 수를 센다.
+    blocks = split_articles(combined)
+    included = set(body.included_image_indices)
+    news_images = [
+        session.article_images.get(i) if i in included else None
+        for i in range(len(blocks))
+    ]
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_path = OUTPUT_DIR / f"AIWeeklyReport_{timestamp}.pptx"
     create_report(
@@ -344,6 +391,7 @@ def generate_ppt(sid: str, body: PptBody):
         date=session.date,
         text1=combined,
         text2=ailab,
+        news_images=news_images,
     )
     session.ppt_path = str(output_path)
     return {"filename": output_path.name}
