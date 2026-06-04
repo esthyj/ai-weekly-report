@@ -1,5 +1,4 @@
 import re
-import math
 from pathlib import Path
 from typing import Union, Sequence
 from pptx import Presentation
@@ -180,9 +179,26 @@ def add_run_with_overrides(paragraph, text, font_name, font_size, base_underline
 
 EMU_PER_PT = 12700  # 1pt = 12700 EMU
 
-# 한 글자의 가로 폭을 폰트 크기(em) 기준 단위로 환산.
-# 한글/한자/전각 문자는 1.0em, 그 외(영문·숫자·기호·공백)는 약 0.55em 로 근사.
+# ── 실제 폰트 metric 측정 (Pillow) ──────────────────────────────
+# 한화고딕 .ttf 를 한 번 로드해 글자 advance 폭·줄높이를 직접 잰다.
+# 한화고딕은 모든 굵기(EL/L/R/B/T)의 advance 폭과 ascent/descent 가 동일하므로
+# 대표 폰트(R) 한 개로 모든 스타일의 폭/높이를 정확히 추정할 수 있다.
+# 폰트 파일이 없으면 _char_width_em 근사로 자동 폴백한다.
+_FONT_REF_PX = 1000  # 측정 기준 크기(클수록 반올림 오차↓). 결과는 font_pt 비율로 환산.
+_font_metric_cache = {}
+
+# CJK(한글/한자/전각)·CJK 문장부호 — 글자 사이 어디서나 줄바꿈 가능
+_CJK_RE = re.compile(r'[가-힣㄰-㆏一-鿿　-〿＀-￯]')
+# 줄바꿈 토큰: CJK 한 글자 | 공백 묶음 | 그 외(영문·숫자 단어) 묶음
+_TOKEN_RE = re.compile(
+    r'[가-힣㄰-㆏一-鿿　-〿＀-￯]'
+    r'|\s+'
+    r'|[^\s가-힣㄰-㆏一-鿿　-〿＀-￯]+'
+)
+
+
 def _char_width_em(ch: str) -> float:
+    """폰트 파일이 없을 때 쓰는 근사 폭(em). CJK 1.0, 그 외 0.55."""
     o = ord(ch)
     if (0xAC00 <= o <= 0xD7A3       # 한글 음절
             or 0x3130 <= o <= 0x318F    # 한글 자모
@@ -193,24 +209,72 @@ def _char_width_em(ch: str) -> float:
     return 0.55
 
 
+def _get_metric_font():
+    """대표 폰트를 _FONT_REF_PX 로 로드해 캐시. 실패 시 None(→ 근사 폴백)."""
+    if "font" not in _font_metric_cache:
+        try:
+            from PIL import ImageFont
+            from .config import FONT_METRIC_FILE
+            _font_metric_cache["font"] = ImageFont.truetype(str(FONT_METRIC_FILE), _FONT_REF_PX)
+        except Exception:
+            _font_metric_cache["font"] = None
+    return _font_metric_cache["font"]
+
+
+def _line_height_em(font) -> float:
+    """폰트의 ascent+descent 로 단일 줄간격 배율(em)을 도출."""
+    asc, desc = font.getmetrics()
+    return (asc + desc) / _FONT_REF_PX
+
+
+def _wrap_line_count(text: str, avail_pt: float, font_pt: float, font) -> int:
+    """그리디 줄바꿈으로 줄 수 계산. font 가 있으면 실제 advance 폭, 없으면 근사."""
+    if not text.strip():
+        return 1
+
+    scale = font_pt / _FONT_REF_PX if font is not None else None
+    lines, cur = 1, 0.0
+    for tok in _TOKEN_RE.findall(text):
+        if font is not None:
+            w = font.getlength(tok) * scale
+        else:
+            w = sum(_char_width_em(c) for c in tok) * font_pt
+
+        if tok.isspace():
+            # 줄 끝의 공백은 다음 줄로 넘기지 않고 흡수(줄 폭에 영향 X)
+            if cur + w > avail_pt and cur > 0:
+                lines, cur = lines + 1, 0.0
+            else:
+                cur += w
+            continue
+
+        # 단어/글자가 현재 줄을 넘기면 새 줄로
+        if cur + w > avail_pt and cur > 0:
+            lines, cur = lines + 1, w
+        else:
+            cur += w
+    return lines
+
+
 # 채워진 텍스트 프레임이 실제로 차지할 세로 높이를 추정(EMU).
-# word_wrap=True 기준으로 박스 폭에 맞춰 줄바꿈되는 줄 수를 문자 폭 합으로 근사한다.
-# line_factor: 폰트 크기 대비 줄 높이 배율(단일 줄간격 ≈ 1.2~1.25).
-def _estimate_text_frame_height(shape, line_factor: float = 1.2) -> int:
+# word_wrap=True 기준으로 박스 폭에 맞춰 줄바꿈되는 줄 수를 실제 폰트 폭으로 잰다.
+# line_factor 를 주면 그 값을, None 이면 폰트 metric(ascent+descent)에서 도출.
+def _estimate_text_frame_height(shape, line_factor: float = None) -> int:
     tf = shape.text_frame
     avail_pt = (shape.width - tf.margin_left - tf.margin_right) / EMU_PER_PT
     if avail_pt <= 0:
         avail_pt = shape.width / EMU_PER_PT
 
+    font = _get_metric_font()
+    lf = line_factor if line_factor is not None else (_line_height_em(font) if font else 1.2)
+
     total_pt = 0.0
     for para in tf.paragraphs:
         sizes = [r.font.size.pt for r in para.runs if r.font.size is not None]
         font_pt = max(sizes) if sizes else 12.0
-        score = sum(_char_width_em(ch) for r in para.runs for ch in r.text)
-
-        units_per_line = max(avail_pt / font_pt, 1.0)
-        lines = max(1, math.ceil(score / units_per_line)) if score else 1
-        total_pt += lines * font_pt * line_factor
+        text = "".join(r.text for r in para.runs)
+        lines = _wrap_line_count(text, avail_pt, font_pt, font)
+        total_pt += lines * font_pt * lf
 
     return int(total_pt * EMU_PER_PT)
 

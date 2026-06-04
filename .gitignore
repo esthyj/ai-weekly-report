@@ -13,6 +13,9 @@ output/*.xlsx
 # Test artifacts (e.g. from `python -m src.ppt_maker`)
 test_output.pptx
 
+# Fonts (사내 전용 한화고딕 — 용량/라이선스상 git 추적 제외. 로컬엔 fonts/ 에 둘 것)
+fonts/
+
 # IDE
 .vscode/
 .idea/

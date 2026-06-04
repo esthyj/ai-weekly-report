@@ -956,3 +956,11 @@ td a:hover { text-decoration: underline; }
   justify-content: flex-start;
   margin: 6px 0 10px;
 }
+/* 헤더 행(#, 검색 키워드, ...)과 같은 줄에 놓이는 전체 선택 버튼 */
+#articles-table thead th { vertical-align: middle; }
+.select-all-th {
+  padding: 5px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
