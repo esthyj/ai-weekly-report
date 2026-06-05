@@ -393,7 +393,12 @@ def crawl_news(
 
         progress_cb(f"  📊 {cat['category']}: {category_count}개")
 
-    return pd.DataFrame(results)
+    df = pd.DataFrame(results)
+    # 점수 높은 → 낮은 순으로 정렬(기사 선택 화면에서 상위 기사가 먼저 보이도록).
+    # CLI·웹 선택 단계가 공통으로 이 순서를 사용한다.
+    if not df.empty and "score" in df.columns:
+        df = df.sort_values("score", ascending=False).reset_index(drop=True)
+    return df
 
 # Test (If needed)
 if __name__ == "__main__":

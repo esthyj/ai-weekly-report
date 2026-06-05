@@ -1,7 +1,30 @@
+import re
 import pandas as pd
 from typing import Callable, Optional
 from .llm_client import call_llm
 from .config import SELECTED_NEWS_FILE
+
+# 태그 헤더([Title]/[Summary1]/[Insight] 등) 매칭 — ppt_maker.TAG_RE 와 동일 규칙
+_TAG_RE = re.compile(r'\[(Title|Summary\d*|Insight)\]\s*', re.IGNORECASE)
+
+
+# 모델이 [Summary3] 이상을 내도 무조건 앞 max_summaries 개만 남긴다(나머지 섹션은 유지).
+def _limit_summaries(text: str, max_summaries: int = 2) -> str:
+    matches = list(_TAG_RE.finditer(text))
+    if not matches:
+        return text
+
+    kept, summary_count = [], 0
+    for i, m in enumerate(matches):
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        section = text[m.start():end].rstrip()
+        if m.group(1).lower().startswith("summary"):
+            summary_count += 1
+            if summary_count > max_summaries:
+                continue
+        if section.strip():
+            kept.append(section)
+    return "\n\n".join(kept)
 
 ProgressCb = Callable[[str], None]
 
@@ -23,10 +46,10 @@ USER_PROMPT_TEMPLATE = """
     Analyze the following news article and produce a structured Korean output.
 
     <requirements>
-    1. Generate [Summary1], [Summary2], ... [SummaryN] based on the article's content depth.
+    1. Generate EXACTLY [Summary1] and [Summary2] — always two, never one or three.
       - Do NOT attempt to summarize the entire article.
       - Focus on high-impact facts, decisions, or implications.
-      - Default to 2 summaries, extend to 3 only if essential.
+      - Do NOT output [Summary3] or any summary beyond [Summary2].
     2. Write ONE insight sentence for an insurance company use case.
     3. Be concise and factual. Do NOT add information not mentioned or logically implied in the article.
     4. Use professional Korean business tone.
@@ -47,12 +70,7 @@ USER_PROMPT_TEMPLATE = """
     First key point (e.g., new service/product and its features)
 
     [Summary2]
-    Second key point (e.g., AI technologies applied) - if applicable
-
-    [Summary3]
-    - if applicable
-
-    ... (continue as needed)
+    Second key point (e.g., AI technologies applied)
 
     [Insight]
     Suggest a concrete way this service or technology could be applied in our insurance company, along with expected benefits if applicable.
@@ -75,13 +93,15 @@ def summarize_article(title: str, content: str) -> Optional[str]:
     if " - " in title:
         title = title.split(" - ")[0].strip()
 
-    return call_llm(
+    result = call_llm(
         system_prompt=SYSTEM_PROMPT,
         user_prompt=USER_PROMPT_TEMPLATE.format(title=title, content=content),
         model=MODEL_NAME,
         max_tokens=MAX_TOKENS,
         log_prefix="      ",
     )
+    # 프롬프트가 2개를 요구하지만, 모델이 [Summary3] 이상을 내도 무조건 2개로 보장
+    return _limit_summaries(result) if result else result
 
 
 # Generate per-article summaries without user interaction. Returns list of

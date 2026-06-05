@@ -332,6 +332,16 @@ def _fill_text_frame(tf, text: str, add_inter_article_gap: bool = True):
             p = tf.paragraphs[0] if not first_para_used and not tf.paragraphs[0].text else tf.add_paragraph()
             first_para_used = True
 
+            # 줄간격을 _render_visual_lines(이미지 경로)와 동일하게 고정.
+            # PowerPoint 기본/테마 줄간격이 적용되면 실제 렌더가 _estimate_text_frame_height
+            # 추정보다 커져 이미지 없는 기사 아래 간격이 잠식된다(기사 간 간격 불균등의 원인).
+            try:
+                p.line_spacing = 1.0
+                p.space_before = Pt(0)
+                p.space_after = Pt(0)
+            except Exception:
+                pass
+
             # prefix(•, ➔)는 인라인 서식과 무관하게 항상 태그 기본 스타일로 출력
             if prefix:
                 add_styled_run(p, prefix, font_name, font_size, underline)
@@ -398,6 +408,135 @@ NEWS_ROW_GAP = Pt(12)          # 기사(행) 사이 세로 간격 ≈ 엔터 한
 NEWS_CARD_BOTTOM_PAD = Pt(6)   # 뉴스 카드 하단 여백(콘텐츠에 맞춰 축소할 때)
 AILAB_GAP = Pt(10)             # 뉴스 카드 아래 ~ AI Lab 시작 사이 간격(작게)
 
+# 줄바꿈을 직접 계산할 때 가용폭에서 빼는 안전 여백(pt).
+# metric 추정과 PowerPoint 실제 렌더의 미세 오차로 그림 옆줄이 재줄바꿈되어
+# 어긋나는 것을 방지한다(좌측 정렬이라 줄이 살짝 짧아지는 건 무해).
+_WRAP_SAFETY_PT = 1.0
+
+
+# 기사 블록을 '논리 줄'(제목/불릿/insight 한 줄) 리스트로 분해한다.
+# 각 논리 줄 = [(token_text, style), ...]. style = (font_name, size_pt, underline, italic, bold, color).
+# _fill_text_frame 과 동일하게 parse_sections/get_tag_style/parse_inline 을 재사용하되,
+# run 을 바로 쓰지 않고 이미지 둘러싸기 줄 계산에 쓸 토큰 목록을 만든다.
+def _article_logical_lines(block: str):
+    sections = parse_sections(block)
+    if not sections:
+        text = block.strip()
+        return [_tokens_for_line(text, "한화고딕 EL", 12, False, "")] if text else []
+
+    logical = []
+    for tag, content in sections:
+        prefix, font_name, font_size, underline, split = get_tag_style(tag)
+        lines = [ln.strip() for ln in content.splitlines() if ln.strip()] if split else [content.strip()]
+        for line in filter(None, lines):
+            logical.append(_tokens_for_line(line, font_name, font_size, underline, prefix))
+    return logical
+
+
+# 한 논리 줄을 (token, style) 목록으로. prefix(•, ➔)는 태그 기본 스타일의 선두 토큰으로 포함.
+# 본문은 parse_inline 으로 인라인 서식을 반영하고 _TOKEN_RE 로 줄바꿈 단위 토큰으로 쪼갠다.
+def _tokens_for_line(line: str, font_name: str, base_size: int, base_underline: bool, prefix: str):
+    tokens = []
+    if prefix:
+        base_style = (font_name, base_size, base_underline, False, False, None)
+        for tok in _TOKEN_RE.findall(prefix):
+            tokens.append((tok, base_style))
+    for seg, ov in parse_inline(line):
+        style = (
+            font_name,
+            ov.get("size", base_size),
+            ov.get("underline", base_underline),
+            ov.get("italic", False),
+            bool(ov.get("bold", False)),
+            ov.get("color"),
+        )
+        for tok in _TOKEN_RE.findall(seg):
+            tokens.append((tok, style))
+    return tokens
+
+
+# 논리 줄들을 '이미지 둘러싸기'로 시각 줄(visual line)들로 분해한다.
+# 현재 줄 상단 y < img_bottom_pt 이면 narrow_pt(그림 옆), 아니면 full_pt(그림 아래) 폭으로 줄바꿈.
+# _wrap_line_count(그리디)·_estimate_text_frame_height(줄높이 lf) 와 동일한 규칙을 따른다.
+# 반환: (visual_lines, total_height_pt). visual_lines 의 각 원소 = [(token, style), ...].
+def _wrap_around(logical_lines, narrow_pt: float, full_pt: float, img_bottom_pt: float, font):
+    lf = _line_height_em(font) if font else 1.2
+    visual = []
+    y = 0.0
+
+    def avail_at(top):
+        return (narrow_pt if top < img_bottom_pt else full_pt) - _WRAP_SAFETY_PT
+
+    for line_tokens in logical_lines:
+        cur, cur_w, cur_size = [], 0.0, 0.0
+        avail = avail_at(y)
+        for tok, style in line_tokens:
+            size = style[1]
+            if font is not None:
+                w = font.getlength(tok) * (size / _FONT_REF_PX)
+            else:
+                w = sum(_char_width_em(c) for c in tok) * size
+            is_space = tok.isspace()
+            if is_space and cur_w == 0:
+                continue  # 줄 맨 앞 공백은 버린다
+            if cur_w + w > avail and cur_w > 0:
+                while cur and cur[-1][0].isspace():
+                    cur.pop()
+                if cur:
+                    visual.append(cur)
+                    y += cur_size * lf
+                    avail = avail_at(y)
+                cur, cur_w, cur_size = [], 0.0, 0.0
+                if is_space:
+                    continue
+                cur, cur_w, cur_size = [(tok, style)], w, size
+            else:
+                cur.append((tok, style))
+                cur_w += w
+                cur_size = max(cur_size, size)
+        # 논리 줄 끝 — 남은 토큰을 한 시각 줄로 확정(강제 줄바꿈)
+        while cur and cur[-1][0].isspace():
+            cur.pop()
+        if cur:
+            visual.append(cur)
+            y += cur_size * lf
+    return visual, y
+
+
+# 시각 줄들을 텍스트 프레임에 1줄=1문단으로 그린다(연속 동일 style 토큰은 한 run 으로 병합).
+# 줄높이를 metric(lf)과 일치시키기 위해 문단 간격을 0, 줄간격을 1.0 으로 고정.
+def _render_visual_lines(tf, visual_lines):
+    for i, line in enumerate(visual_lines):
+        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+        try:
+            p.line_spacing = 1.0
+            p.space_before = Pt(0)
+            p.space_after = Pt(0)
+        except Exception:
+            pass
+        merged = []
+        for tok, style in line:
+            if merged and merged[-1][1] == style:
+                merged[-1] = (merged[-1][0] + tok, style)
+            else:
+                merged.append([tok, style])
+        for text, style in merged:
+            _add_styled_token_run(p, text, style)
+
+
+def _add_styled_token_run(p, text: str, style):
+    name, size, underline, italic, bold, color = style
+    r = p.add_run()
+    r.text = text
+    r.font.name = name
+    r.font.size = Pt(size)
+    r.font.underline = underline
+    r.font.italic = italic
+    if bold:
+        r.font.bold = True
+    if color:
+        r.font.color.rgb = RGBColor.from_string(color.lstrip("#"))
+
 
 def set_news_articles_with_images(prs: Presentation, news_text: str, images,
                                   shape_index: ShapePath = NEWS_SHAPE_INDEX, slide_index: int = 0):
@@ -422,16 +561,20 @@ def set_news_articles_with_images(prs: Presentation, news_text: str, images,
     region_width = card.width - ctf.margin_left - ctf.margin_right
     card_bottom = card.top + card.height
 
+    # 줄바꿈 직접 계산용 — 폰트 metric, 영역 폭(pt), 좁은 폭(그림 옆), 이미지 폭(pt)
+    font = _get_metric_font()
+    full_pt = region_width / EMU_PER_PT
+    narrow_pt = full_pt - (NEWS_IMG_WIDTH + NEWS_IMG_GAP) / EMU_PER_PT
+    img_w_pt = NEWS_IMG_WIDTH / EMU_PER_PT
+
     cur_top = region_top
     for idx, block in enumerate(blocks):
         img_path = images[idx] if idx < len(images) else None
         has_img = bool(img_path)
-        text_w = region_width - (NEWS_IMG_WIDTH + NEWS_IMG_GAP) if has_img else region_width
 
-        tb = slide.shapes.add_textbox(int(region_left), int(cur_top), int(text_w), Pt(20))
+        tb = slide.shapes.add_textbox(int(region_left), int(cur_top), int(region_width), Pt(20))
         tf = tb.text_frame
         tf.word_wrap = True
-        tf.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
         tf.vertical_anchor = MSO_ANCHOR.TOP
         # 슬라이드 텍스트박스 기본 여백 제거 → region_left 에 본문이 밀착, 높이 추정도 폭과 일치
         tf.margin_left = 0
@@ -439,23 +582,43 @@ def set_news_articles_with_images(prs: Presentation, news_text: str, images,
         tf.margin_top = 0
         tf.margin_bottom = 0
 
-        # 기사 단위 렌더 — 기사 내부엔 기사 간격 빈 줄이 필요 없다.
-        _fill_text_frame(tf, block, add_inter_article_gap=False)
-        text_h = _estimate_text_frame_height(tb)
+        if not has_img:
+            # 이미지 없는 기사 — 전체 폭, PowerPoint 네이티브 줄바꿈(기존 동작 유지).
+            tf.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+            _fill_text_frame(tf, block, add_inter_article_gap=False)
+            text_h = _estimate_text_frame_height(tb)
+            tb.height = text_h
+            cur_top += text_h + NEWS_ROW_GAP
+            continue
+
+        # 이미지 있는 기사 — 그림을 둘러싸도록 줄을 직접 계산.
+        # 그림과 세로로 겹치는 줄만 좁게, 그림 아래 줄은 영역 전체 폭으로 흐른다.
+        logical = _article_logical_lines(block)
+
+        # 짧은 기사(그림보다 본문이 짧음) 판별: 전체 폭 기준 높이가 그림보다 작으면
+        # 둘러쌀 아래 영역이 없으므로 전체를 좁게 두고 그림을 본문 높이로 캡(기존 동작).
+        _, h_full_pt = _wrap_around(logical, full_pt, full_pt, 0.0, font)
+        if h_full_pt < img_w_pt:
+            visual, h_pt = _wrap_around(logical, narrow_pt, narrow_pt, float("inf"), font)
+            text_h = int(h_pt * EMU_PER_PT)
+            img_size = min(int(NEWS_IMG_WIDTH), text_h)
+        else:
+            visual, h_pt = _wrap_around(logical, narrow_pt, full_pt, img_w_pt, font)
+            text_h = int(h_pt * EMU_PER_PT)
+            img_size = int(NEWS_IMG_WIDTH)
+
+        # 줄을 미리 끊었으므로 PowerPoint 가 다시 맞추지 않도록 auto_size 끔.
+        tf.auto_size = MSO_AUTO_SIZE.NONE
+        _render_visual_lines(tf, visual)
         tb.height = text_h
 
-        if has_img:
-            # 이미지를 기사 본문 높이에 맞춘 정사각형으로(우측 정렬) 배치.
-            # 고정 높이(1.6in)로 두면 짧은 본문에서 이미지가 본문보다 커져 다음 기사가
-            # 밀려나며 간격이 크게 벌어지므로, 본문 높이로 캡을 씌워 행 높이를 본문 기준으로 유지.
-            img_size = min(int(NEWS_IMG_WIDTH), int(text_h))
-            slide.shapes.add_picture(
-                str(img_path),
-                int(region_left + region_width - img_size),
-                int(cur_top),
-                width=img_size,
-                height=img_size,
-            )
+        slide.shapes.add_picture(
+            str(img_path),
+            int(region_left + region_width - img_size),
+            int(cur_top),
+            width=img_size,
+            height=img_size,
+        )
 
         # 다음 기사는 본문 높이 + 한 줄 간격만큼 아래에서 시작 (기사 간격 ≈ 엔터 한 칸)
         cur_top += text_h + NEWS_ROW_GAP
