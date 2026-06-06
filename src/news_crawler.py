@@ -26,10 +26,10 @@ EXCLUDE_KEYWORDS = ["배타적", "영상", "종목", "주가", "급등", "급락
 
 # keywords with associated priority scores
 PRIORITY_KEYWORDS = {
-    "출시": 10, "런칭": 10, "오픈": 8, "서비스": 12,
-    "발표": 6, "도입": 6, "개발": 5, "자동": 10,
-    "챗봇": 10, "GPT": 10, "생성형": 10, "LLM": 10,
-    "플랫폼": 3, "솔루션": 3, "시스템": 2,
+    "출시": 8, "런칭": 8, "오픈": 8, "서비스": 10,
+    "제작": 8, "도입": 8, "개발": 8, "자동": 5, "적용": 8, "확대": 8,
+    "챗봇": 10, "GPT": 5, "생성형": 10, "LLM": 10,
+    "플랫폼": 3, "솔루션": 3, "시스템": 3,
 }
 
 # To identify financial companies of a certain scale, the following companies were listed
@@ -380,7 +380,7 @@ def crawl_news(
                     "content": content,
                     "score": score
                 })
-                progress_cb(f"    📰 {entry.title[:35]}... (점수: {score})")
+                progress_cb(f"    📰 {entry.title[:35]}... (관련도: {score})")
 
             if candidates:
                 best = max(candidates, key=lambda x: x["score"])
