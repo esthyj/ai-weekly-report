@@ -3,242 +3,129 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AI Weekly Report — Web Demo</title>
+  <title>오렌지픽 — AI 기반 주간 리포트 자동 생성 프로그램</title>
   <link rel="stylesheet" href="/app.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
+  <style>
+    /* ── 랜딩(A) 화면 전용 레이아웃 ───────────────────────── */
+    body { background: #FFECDD; }
+    .corner-logo {
+      position: fixed;
+      top: 6px;
+      left: 27px;
+      width: min(171px, 28.5vw);
+      height: auto;
+      z-index: 10;
+    }
+    .landing {
+      font-family: "Pretendard Variable", Pretendard, var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 46px 23px 68px;
+      gap: 27px;
+    }
+    .landing-brand {
+      font-size: 42px;
+      font-weight: 700;
+      color: var(--text);        /* 진한 갈색/검정 계열 */
+      letter-spacing: -0.5px;
+      margin: 34px 0 0;          /* 조금 더 아래로 */
+      min-height: 1.3em;          /* 타이핑 전 레이아웃 흔들림 방지 */
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+    .landing-tagline {
+      font-size: 20px;
+      color: #5a2d0c;            /* 진한 갈색 */
+      margin: -13px 0 4px;
+      min-height: 1.4em;          /* 타이핑 전 레이아웃 흔들림 방지 */
+    }
+    .landing-tagline .caret {
+      display: inline-block;
+      width: 2px;
+      height: 1em;
+      margin-left: 3px;
+      vertical-align: -0.12em;
+      background: var(--text-muted);
+      animation: blink 0.8s steps(1) infinite;
+    }
+    /* 정중앙 일러스트 + 우상단 로봇 겹침 배치 */
+    .hero {
+      position: relative;
+      display: inline-block;
+      line-height: 0;
+    }
+    .hero-woman {
+      width: min(600px, 85.5vw);
+      height: auto;
+      display: block;
+    }
+    .hero-robot {
+      position: absolute;
+      top: -11%;
+      right: -14%;
+      width: min(242px, 42.75vw);
+      height: auto;
+      animation: float 3.2s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50%      { transform: translateY(-10px); }
+    }
+    a.primary.cta {
+      font-size: 18px;
+      padding: 14px 32px;
+      border-radius: 999px;
+      box-shadow: var(--shadow-md);
+      background: var(--brand);
+      color: #fff;
+      border-color: var(--brand);
+    }
+    a.primary.cta:hover {
+      background: var(--text);
+      border-color: var(--text);
+      color: #fff;
+    }
+  </style>
 </head>
 <body>
-  <!-- 진행 단계 표시 (상단 고정) -->
-  <nav class="stepper-wrap" aria-label="진행 단계">
-    <ol id="stepper" class="stepper">
-      <li class="stepper-item" data-group="input"><span class="stepper-dot">1</span><span class="stepper-label">기본 정보 입력</span></li>
-      <li class="stepper-item" data-group="collect"><span class="stepper-dot">2</span><span class="stepper-label">뉴스 수집 및 요약</span></li>
-      <li class="stepper-item" data-group="ailab"><span class="stepper-dot">3</span><span class="stepper-label">부서 내용 정리</span></li>
-      <li class="stepper-item" data-group="review"><span class="stepper-dot">4</span><span class="stepper-label">최종 검토</span></li>
-      <li class="stepper-item" data-group="done"><span class="stepper-dot">5</span><span class="stepper-label">생성된 자료 출력</span></li>
-    </ol>
-  </nav>
+  <img class="corner-logo" src="/images/Hanwha_Insurance_transparent.png" alt="한화손해보험 로고" />
 
-  <main>
-    <!-- 단계 안내(아이콘 + 설명) — 스크롤 영역 -->
-    <img id="stepper-desc-icon" class="stepper-desc-icon" src="/images/write.png" alt="" />
-    <p id="stepper-desc" class="stepper-desc"></p>
+  <main class="landing">
+    <h1 class="landing-brand">오렌지픽! AI 기반 주간 리포트 자동 생성 프로그램</h1>
+    <p class="landing-tagline" id="landing-tagline" data-text="주간리포트 작성이 어려우시다고요? ‘오렌지픽’이 도와드릴게요!"></p>
 
-    <!-- Step 0: 메타데이터 + 크롤링 설정 -->
-    <section id="step-meta" class="step active">
-      <h2>보고서 정보 입력</h2>
-      <div class="form-row">
-        <label>발행 호수 <input id="meta-number" type="text" placeholder="예: 25" /></label>
-        <label>발행 날짜 <input id="meta-date" type="text" placeholder="예: 2026년 5월 28일" /></label>
-      </div>
+    <div class="hero">
+      <img class="hero-woman" src="/images/working_woman.png" alt="업무 중인 사람 일러스트" />
+      <img class="hero-robot" src="/images/orange_robot_transparent.png" alt="오렌지 로봇" />
+    </div>
 
-      <h2 style="margin-top: 22px;">크롤링 설정</h2>
-      <div class="form-row">
-        <label>검색 주제 (아래 단어는 반드시 검색 키워드에 포함됩니다.)
-          <input id="cfg-keyword" type="text" placeholder="예: AI" autocomplete="off" />
-        </label>
-        <label>검색 기간 (입력한 N일 전 ~ 오늘까지 기사 검색)
-          <input id="cfg-days" type="number" min="1" placeholder="예: 14" />
-        </label>
-      </div>
-
-      <div class="tag-input-wrap">
-        <label class="tag-label">검색 기업 키워드 (Enter로 추가, ✕로 삭제)</label>
-        <div id="cfg-companies" class="tag-list"></div>
-        <input id="cfg-company-input" type="text" placeholder="기업명 입력 후 Enter (예: 삼성화재)" />
-        <div class="tag-actions">
-          <button type="button" id="btn-preset-insurance">보험사 프리셋</button>
-          <button type="button" id="btn-clear-companies">초기화</button>
-        </div>
-      </div>
-
-      <button id="btn-start" class="primary" style="margin-top: 20px;">크롤링 시작</button>
-    </section>
-
-    <!-- Step 1: 크롤링 진행 -->
-    <section id="step-crawl" class="step">
-      <h2>뉴스를 검색하는 중...</h2>
-
-      <div class="progress-card">
-        <div class="progress-head">
-          <span id="crawl-progress-label">준비 중...</span>
-          <span id="crawl-progress-count">0 / 0</span>
-        </div>
-        <div class="progress-bar"><div id="crawl-progress-fill" class="progress-fill"></div></div>
-        <p id="crawl-current" class="progress-current">잠시만 기다려 주세요.</p>
-      </div>
-
-      <div id="crawl-companies" class="company-groups"></div>
-
-      <details class="log-details">
-        <summary>상세 로그 보기</summary>
-        <div id="crawl-log" class="log"></div>
-      </details>
-    </section>
-
-    <!-- Step 2: 기사 선택 -->
-    <section id="step-select" class="step">
-      <h2>보고서에 포함할 기사 선택</h2>
-      <p class="hint">1개 이상의 기사를 체크한 뒤 다음 단계로 진행하세요.</p>
-      <div class="table-wrap">
-        <table id="articles-table">
-          <thead><tr><th><button type="button" id="btn-select-all-articles" class="select-all-th">전체 선택</button></th><th>#</th><th>검색 키워드</th><th>점수</th><th>제목</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <button id="btn-summarize" class="primary">요약 시작</button>
-    </section>
-
-    <!-- Step 3: 요약 진행 -->
-    <section id="step-summarize" class="step">
-      <h2>AI가 기사를 요약하는 중...</h2>
-
-      <div class="progress-card">
-        <div class="progress-head">
-          <span id="summarize-progress-label">준비 중...</span>
-          <span id="summarize-progress-count">0 / 0</span>
-        </div>
-        <div class="progress-bar"><div id="summarize-progress-fill" class="progress-fill"></div></div>
-        <p id="summarize-current" class="progress-current">잠시만 기다려 주세요.</p>
-      </div>
-
-      <div id="summarize-articles" class="summarize-articles"></div>
-    </section>
-
-    <!-- Step 4: 요약 검토 -->
-    <section id="step-review" class="step">
-      <h2>요약 검토</h2>
-      <p class="hint">포함할 요약에 체크한 뒤 아래 동작을 선택하세요.</p>
-      <div class="select-toolbar">
-        <button type="button" id="btn-select-all-summaries">전체 선택</button>
-      </div>
-      <div id="summaries-list" class="summaries"></div>
-      <div class="review-actions">
-        <button id="btn-accept" class="primary">위 내용으로 진행</button>
-        <button id="btn-resummarize">다시 요약 (같은 기사)</button>
-        <button id="btn-reselect">기사 다시 선택</button>
-      </div>
-    </section>
-
-    <!-- Step 5: AI Lab 콘텐츠 입력 -->
-    <section id="step-ailab-input" class="step">
-      <h2>부서 내 주요 내용 입력</h2>
-      <p class="hint">PPT의 'AI Lab' 섹션에 들어갈 내용을 입력해주세요. 입력된 내용을 AI가 요약합니다.</p>
-      <textarea id="ailab-content" class="ailab-textarea" rows="14" placeholder="부서 내 주요 내용을 입력하세요. (10자 이상)"></textarea>
-      <div class="ailab-actions">
-        <button id="btn-generate-ppt" class="primary">요약</button>
-      </div>
-    </section>
-
-    <!-- Step 6: AI Lab 요약 진행 -->
-    <section id="step-ailab" class="step">
-      <h2>부서 내용을 요약하는 중...</h2>
-
-      <div class="ailab-status-card">
-        <div class="ailab-spinner-wrap"><span class="spinner-lg"></span></div>
-        <div class="ailab-status-body">
-          <h3>AI가 입력하신 내용을 요약하고 있어요</h3>
-          <p id="ailab-status-message">잠시만 기다려 주세요...</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- Step 7: 최종 확인 -->
-    <section id="step-final-review" class="step">
-      <h2>최종 확인 · 편집</h2>
-      <p class="hint">단어를 선택한 뒤 툴바로 <b>굵게</b>, <i>이탤릭</i>, <u>밑줄</u>, 글자 크기, 색상 강조를 적용할 수 있습니다. PPT 생성 시 그대로 유지됩니다.</p>
-
-      <div class="final-card">
-        <h3>📰국내외 AI 동향</h3>
-        <div class="rich-toolbar" data-target="final-news-summary">
-          <button type="button" data-cmd="bold" title="굵게 (Ctrl+B)"><b>B</b></button>
-          <button type="button" data-cmd="italic" title="이탤릭 (Ctrl+I)"><i>I</i></button>
-          <button type="button" data-cmd="underline" title="밑줄 (Ctrl+U)"><u>U</u></button>
-          <span class="tb-divider"></span>
-          <select class="tb-size-select" title="글자 크기">
-            <option value="10">10px</option>
-            <option value="11">11px</option>
-            <option value="12">12px</option>
-            <option value="14">14px</option>
-            <option value="16" selected>16px</option>
-            <option value="18">18px</option>
-            <option value="20">20px</option>
-            <option value="24">24px</option>
-            <option value="28">28px</option>
-            <option value="32">32px</option>
-          </select>
-          <span class="tb-divider"></span>
-          <div class="tb-colorpicker">
-            <button type="button" class="tb-color-trigger" title="글자 색">
-              <span class="tb-bar">가</span>
-              <span class="tb-color-line" style="background:#000000"></span>
-              <span class="tb-caret">▾</span>
-            </button>
-            <div class="tb-color-palette" hidden></div>
-          </div>
-        </div>
-        <div id="final-news-summary" class="rich-edit" contenteditable="true" spellcheck="false"></div>
-      </div>
-
-      <div class="final-card">
-        <h3>🖼️ 기사별 이미지</h3>
-        <p class="hint">각 기사에 AI 생성 이미지를 우측에 넣을 수 있습니다. 이미지에는 글자가 들어가지 않습니다. 생성 결과를 보고 포함 여부를 선택하세요.</p>
-        <div id="article-images-list" class="article-images-list"></div>
-      </div>
-
-      <div class="final-card">
-        <h3>🔬 AI Lab</h3>
-        <div class="rich-toolbar" data-target="final-ailab-summary">
-          <button type="button" data-cmd="bold" title="굵게 (Ctrl+B)"><b>B</b></button>
-          <button type="button" data-cmd="italic" title="이탤릭 (Ctrl+I)"><i>I</i></button>
-          <button type="button" data-cmd="underline" title="밑줄 (Ctrl+U)"><u>U</u></button>
-          <span class="tb-divider"></span>
-          <select class="tb-size-select" title="글자 크기">
-            <option value="10">10px</option>
-            <option value="11">11px</option>
-            <option value="12">12px</option>
-            <option value="14">14px</option>
-            <option value="16" selected>16px</option>
-            <option value="18">18px</option>
-            <option value="20">20px</option>
-            <option value="24">24px</option>
-            <option value="28">28px</option>
-            <option value="32">32px</option>
-          </select>
-          <span class="tb-divider"></span>
-          <div class="tb-colorpicker">
-            <button type="button" class="tb-color-trigger" title="글자 색">
-              <span class="tb-bar">가</span>
-              <span class="tb-color-line" style="background:#000000"></span>
-              <span class="tb-caret">▾</span>
-            </button>
-            <div class="tb-color-palette" hidden></div>
-          </div>
-        </div>
-        <div id="final-ailab-summary" class="rich-edit" contenteditable="true" spellcheck="false"></div>
-      </div>
-
-      <div class="review-actions">
-        <button id="btn-confirm-ppt" class="primary">위 내용으로 진행</button>
-        <button id="btn-reset-edits">원본으로 되돌리기</button>
-      </div>
-    </section>
-
-    <!-- Step 8: Done -->
-    <section id="step-done" class="step">
-      <h2>✅ 완료</h2>
-      <p>PPT 보고서가 준비되었습니다.</p>
-      <a id="btn-download" class="primary" href="#" download>📥 PPT 다운로드</a>
-      <button id="btn-restart">처음부터 다시</button>
-    </section>
-
-    <!-- Error overlay -->
-    <section id="step-error" class="step error">
-      <h2>❌ 오류가 발생했습니다</h2>
-      <pre id="error-detail"></pre>
-      <button id="btn-error-restart">처음부터 다시</button>
-    </section>
+    <a class="primary cta" href="/report.html">‘오렌지픽’ 바로 체험하기</a>
   </main>
 
-  <script src="/app.js"></script>
+  <script>
+    // 제목 타자(타이핑) 효과 — 한 글자씩 출력 후 깜빡이는 커서 유지
+    (function () {
+      var el = document.getElementById("landing-tagline");
+      var text = el.getAttribute("data-text");
+      var START = 1000;   // 페이지 로드 후 시작 지연(ms)
+      var STEP = 40;     // 글자 간 등장 간격(ms)
+      var caret = document.createElement("span");
+      caret.className = "caret";
+      el.appendChild(caret);
+      var i = 0;
+      function type() {
+        if (i < text.length) {
+          caret.insertAdjacentText("beforebegin", text.charAt(i));
+          i++;
+          setTimeout(type, STEP);
+        }
+      }
+      setTimeout(type, START);
+    })();
+  </script>
 </body>
 </html>
