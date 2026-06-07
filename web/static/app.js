@@ -69,20 +69,14 @@ function updateStepper(stepName) {
     el.classList.toggle("done", i < idx);
     el.classList.toggle("active", i === idx);
   });
+  const waiting = stepName === "crawl" || stepName === "summarize";
   const desc = document.getElementById("stepper-desc");
   if (desc) {
     const text = STEP_DESCRIPTIONS[stepName] || "";
-    if (stepName === "crawl" || stepName === "summarize") {
-      desc.textContent = stepName === "crawl" ? text + " 잠시만 기다려주세요!" : text;
-      const dots = document.createElement("span");
-      dots.className = "loading-dots";
-      dots.innerHTML = "<span></span><span></span><span></span>";
-      desc.appendChild(dots);
-    } else {
-      desc.textContent = text;
-    }
+    desc.textContent = stepName === "crawl" ? text + " 잠시만 기다려주세요!" : text;
   }
   // 단계별 안내 아이콘 — 매핑된 화면에서만 표시
+  // 수집·요약 대기 중에는 점 대신 아이콘이 커졌다 작아졌다 하며 진행 중임을 표시
   const icon = document.getElementById("stepper-desc-icon");
   if (icon) {
     const src = STEP_ICONS[stepName];
@@ -92,6 +86,7 @@ function updateStepper(stepName) {
     } else {
       icon.classList.remove("show");
     }
+    icon.classList.toggle("pulse", waiting);
   }
 }
 
@@ -189,10 +184,25 @@ function launchConfetti() {
   requestAnimationFrame(frame);
 }
 
+// 직전에 보여준 화면 — 슬라이드 방향(앞으로/뒤로)을 판단하는 데 사용
+let _prevStep = null;
+
 function show(stepName) {
-  document.querySelectorAll(".step").forEach((el) => el.classList.remove("active"));
+  // 내부 STEPS 순서로 진행 방향 판단: 뒤로 가면 반대 방향에서 슬라이드인
+  const prevIdx = STEPS.indexOf(_prevStep);
+  const nextIdx = STEPS.indexOf(stepName);
+  const back = prevIdx > -1 && nextIdx > -1 && nextIdx < prevIdx;
+
+  document.querySelectorAll(".step").forEach((el) =>
+    el.classList.remove("active", "slide-in", "slide-back"));
   const el = document.getElementById("step-" + stepName);
-  if (el) el.classList.add("active");
+  if (el) {
+    el.classList.toggle("slide-back", back);
+    el.classList.add("active");
+    void el.offsetWidth; // reflow를 강제해 같은/다른 화면 모두 애니메이션 재시작
+    el.classList.add("slide-in");
+  }
+  _prevStep = stepName;
   updateStepper(stepName);
   // 결과물(file.png 아이콘)이 나타나는 시점에 맞춰 폭죽 재생
   if (stepName === "done") launchConfetti();

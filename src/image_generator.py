@@ -42,7 +42,9 @@ STYLE_RULE = (
     "Render in a realistic, photorealistic style — natural lighting, real-world "
     "settings and materials, true-to-life detail, like a professional "
     "photograph. Avoid abstract, conceptual, cartoonish, low-poly, "
-    "neon-glow, holographic or surreal/sci-fi looks."
+    "neon-glow, holographic or surreal/sci-fi looks. "
+    "Any people shown must appear Korean (East Asian, of Korean ethnicity, "
+    "with Korean facial features)."
 )
 
 # 이미지에 글자가 들어가지 않도록 하는 필수 규칙. 항상 프롬프트 끝에 덧붙인다.
@@ -63,6 +65,9 @@ _PROMPT_SYSTEM = (
     "(blues, teals, warm accents). Use a realistic, photorealistic style with "
     "natural lighting — avoid abstract, conceptual or surreal elements. Do not "
     "include real brand logos or identifiable real people. "
+    "If the scene includes any people, describe them as Korean (East Asian "
+    "people of Korean ethnicity, with Korean facial features), styled as "
+    "anonymous, non-identifiable individuals. "
     "Never include any words, letters or text in the described scene. "
     "Output ONLY the prompt text, nothing else."
 )

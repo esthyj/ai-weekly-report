@@ -26,10 +26,8 @@ EXCLUDE_KEYWORDS = ["배타적", "영상", "종목", "주가", "급등", "급락
 
 # keywords with associated priority scores
 PRIORITY_KEYWORDS = {
-    "출시": 8, "런칭": 8, "오픈": 8, "서비스": 10,
-    "제작": 8, "도입": 8, "개발": 8, "자동": 5, "적용": 8, "확대": 8,
-    "챗봇": 10, "GPT": 5, "생성형": 10, "LLM": 10,
-    "플랫폼": 3, "솔루션": 3, "시스템": 3,
+    "출시": 8, "런칭": 8, "오픈": 8, "구축":8, "선보":8, "공개":8, "적용": 8, "확대": 8,"제작": 8, "도입": 8, "개발": 8,
+    "챗봇": 10, "생성형": 10, "LLM": 10, "에이전트": 10, "자동":10, "RAG":10
 }
 
 # To identify financial companies of a certain scale, the following companies were listed

@@ -5,6 +5,7 @@ from pptx import Presentation
 from pptx.util import Pt, Inches
 from pptx.dml.color import RGBColor
 from pptx.enum.text import MSO_AUTO_SIZE, MSO_ANCHOR
+from pptx.oxml.ns import qn
 from .config import PPT_TEMPLATE_FILE
 
 ShapePath = Union[int, Sequence[int]]
@@ -227,10 +228,52 @@ def _line_height_em(font) -> float:
     return (asc + desc) / _FONT_REF_PX
 
 
-def _wrap_line_count(text: str, avail_pt: float, font_pt: float, font) -> int:
-    """그리디 줄바꿈으로 줄 수 계산. font 가 있으면 실제 advance 폭, 없으면 근사."""
+# ── prefix(•/➔) 내어쓰기(hanging indent) 헬퍼 ────────────────────
+# prefix 가 붙은 줄이 wrap 되면 둘째 줄부터 prefix 폭만큼 들여써서
+# 첫 줄의 첫 글자 위치에 맞춘다. 폭 계산은 _wrap_line_count/_wrap_around 와
+# 동일 규칙(실측 또는 _char_width_em 근사)이라 줄바꿈·높이와 정확히 일치한다.
+def _prefix_width_pt(prefix: str, font_pt: float, font) -> float:
+    """prefix('• '/'➔ ')의 advance 폭(pt). prefix 가 없으면 0."""
+    if not prefix:
+        return 0.0
+    if font is not None:
+        return font.getlength(prefix) * (font_pt / _FONT_REF_PX)
+    return sum(_char_width_em(c) for c in prefix) * font_pt
+
+
+def _prefix_width_emu(prefix: str, font_pt: float, font) -> int:
+    return int(round(_prefix_width_pt(prefix, font_pt, font) * EMU_PER_PT))
+
+
+def _set_hanging_indent(p, marL_emu: int, indent_emu: int = None):
+    """문단에 marL/indent(EMU)를 직접 설정.
+    indent_emu=None 이면 -marL_emu(prefix 가 줄에 포함된 native 경로용 진짜 내어쓰기).
+    indent_emu=0 이면 문단 전체를 marL 만큼 오른쪽으로(이미지 경로의 continuation 문단용)."""
+    if marL_emu <= 0:
+        return
+    pPr = p._p.get_or_add_pPr()
+    pPr.set('marL', str(marL_emu))
+    pPr.set('indent', str(-marL_emu if indent_emu is None else indent_emu))
+
+
+def _read_marL_pt(para) -> float:
+    """문단에 설정된 marL(EMU)을 pt 로 읽어온다(없으면 0). 읽기 전용."""
+    pPr = para._p.find(qn('a:pPr'))
+    if pPr is None:
+        return 0.0
+    marL = pPr.get('marL')
+    return (int(marL) / EMU_PER_PT) if marL else 0.0
+
+
+def _wrap_line_count(text: str, avail_pt: float, font_pt: float, font, hang_pt: float = 0.0) -> int:
+    """그리디 줄바꿈으로 줄 수 계산. font 가 있으면 실제 advance 폭, 없으면 근사.
+    hang_pt>0 이면 내어쓰기 — 첫 줄은 avail_pt, 둘째 줄부터 avail_pt-hang_pt 가용."""
     if not text.strip():
         return 1
+
+    # 현재 줄 번호(lines)에 따른 가용폭. 둘째 줄부터 hang_pt 차감(최소 font_pt 로 clamp).
+    def limit(line_no):
+        return avail_pt if line_no == 1 else max(avail_pt - hang_pt, font_pt)
 
     scale = font_pt / _FONT_REF_PX if font is not None else None
     lines, cur = 1, 0.0
@@ -242,14 +285,14 @@ def _wrap_line_count(text: str, avail_pt: float, font_pt: float, font) -> int:
 
         if tok.isspace():
             # 줄 끝의 공백은 다음 줄로 넘기지 않고 흡수(줄 폭에 영향 X)
-            if cur + w > avail_pt and cur > 0:
+            if cur + w > limit(lines) and cur > 0:
                 lines, cur = lines + 1, 0.0
             else:
                 cur += w
             continue
 
         # 단어/글자가 현재 줄을 넘기면 새 줄로
-        if cur + w > avail_pt and cur > 0:
+        if cur + w > limit(lines) and cur > 0:
             lines, cur = lines + 1, w
         else:
             cur += w
@@ -273,7 +316,9 @@ def _estimate_text_frame_height(shape, line_factor: float = None) -> int:
         sizes = [r.font.size.pt for r in para.runs if r.font.size is not None]
         font_pt = max(sizes) if sizes else 12.0
         text = "".join(r.text for r in para.runs)
-        lines = _wrap_line_count(text, avail_pt, font_pt, font)
+        # 내어쓰기(marL)가 설정된 문단은 continuation 줄이 좁아지므로 줄 수 추정에 반영
+        hang_pt = _read_marL_pt(para)
+        lines = _wrap_line_count(text, avail_pt, font_pt, font, hang_pt)
         total_pt += lines * font_pt * lf
 
     return int(total_pt * EMU_PER_PT)
@@ -342,9 +387,13 @@ def _fill_text_frame(tf, text: str, add_inter_article_gap: bool = True):
             except Exception:
                 pass
 
-            # prefix(•, ➔)는 인라인 서식과 무관하게 항상 태그 기본 스타일로 출력
+            # prefix(•, ➔)는 인라인 서식과 무관하게 항상 태그 기본 스타일로 출력.
+            # 단 밑줄은 빼서(➔ 뒤 본문 첫 글자부터 밑줄) prefix 아래엔 줄이 안 그려진다.
             if prefix:
-                add_styled_run(p, prefix, font_name, font_size, underline)
+                add_styled_run(p, prefix, font_name, font_size, False)
+                # 내어쓰기: wrap 시 둘째 줄부터 prefix 폭만큼 들여써 첫 글자에 맞춘다.
+                w = _prefix_width_emu(prefix, font_size, _get_metric_font())
+                _set_hanging_indent(p, w)
 
             # 본문은 인라인 마크업을 파싱해 run 분할 — 마크업 없으면 한 개 run
             for seg, overrides in parse_inline(line):
@@ -415,7 +464,7 @@ _WRAP_SAFETY_PT = 1.0
 
 
 # 기사 블록을 '논리 줄'(제목/불릿/insight 한 줄) 리스트로 분해한다.
-# 각 논리 줄 = [(token_text, style), ...]. style = (font_name, size_pt, underline, italic, bold, color).
+# 각 논리 줄 = (hang_pt, [(token_text, style), ...]). style = (font_name, size_pt, underline, italic, bold, color).
 # _fill_text_frame 과 동일하게 parse_sections/get_tag_style/parse_inline 을 재사용하되,
 # run 을 바로 쓰지 않고 이미지 둘러싸기 줄 계산에 쓸 토큰 목록을 만든다.
 def _article_logical_lines(block: str):
@@ -433,12 +482,15 @@ def _article_logical_lines(block: str):
     return logical
 
 
-# 한 논리 줄을 (token, style) 목록으로. prefix(•, ➔)는 태그 기본 스타일의 선두 토큰으로 포함.
+# 한 논리 줄을 (hang_pt, [(token, style), ...]) 로. prefix(•, ➔)는 태그 기본 스타일의 선두 토큰으로 포함.
+# hang_pt 는 prefix advance 폭(pt) — wrap 시 continuation 시각 줄을 그만큼 들여쓰는 데 쓴다.
 # 본문은 parse_inline 으로 인라인 서식을 반영하고 _TOKEN_RE 로 줄바꿈 단위 토큰으로 쪼갠다.
 def _tokens_for_line(line: str, font_name: str, base_size: int, base_underline: bool, prefix: str):
+    hang_pt = _prefix_width_pt(prefix, base_size, _get_metric_font())
     tokens = []
     if prefix:
-        base_style = (font_name, base_size, base_underline, False, False, None)
+        # prefix(•, ➔)에는 밑줄을 빼서 ➔ 뒤 본문 첫 글자부터 밑줄이 시작되게 한다.
+        base_style = (font_name, base_size, False, False, False, None)
         for tok in _TOKEN_RE.findall(prefix):
             tokens.append((tok, base_style))
     for seg, ov in parse_inline(line):
@@ -452,13 +504,14 @@ def _tokens_for_line(line: str, font_name: str, base_size: int, base_underline: 
         )
         for tok in _TOKEN_RE.findall(seg):
             tokens.append((tok, style))
-    return tokens
+    return (hang_pt, tokens)
 
 
 # 논리 줄들을 '이미지 둘러싸기'로 시각 줄(visual line)들로 분해한다.
 # 현재 줄 상단 y < img_bottom_pt 이면 narrow_pt(그림 옆), 아니면 full_pt(그림 아래) 폭으로 줄바꿈.
-# _wrap_line_count(그리디)·_estimate_text_frame_height(줄높이 lf) 와 동일한 규칙을 따른다.
-# 반환: (visual_lines, total_height_pt). visual_lines 의 각 원소 = [(token, style), ...].
+# 논리 줄에 hang_pt(prefix 폭)가 있으면 그 줄의 둘째 시각 줄부터 가용폭을 hang_pt 만큼 줄이고
+# marL 로 들여써 첫 글자에 맞춘다. _wrap_line_count·_estimate_text_frame_height 와 동일 규칙.
+# 반환: (visual_lines, total_height_pt). visual_lines 의 각 원소 = (marL_emu, [(token, style), ...]).
 def _wrap_around(logical_lines, narrow_pt: float, full_pt: float, img_bottom_pt: float, font):
     lf = _line_height_em(font) if font else 1.2
     visual = []
@@ -467,9 +520,15 @@ def _wrap_around(logical_lines, narrow_pt: float, full_pt: float, img_bottom_pt:
     def avail_at(top):
         return (narrow_pt if top < img_bottom_pt else full_pt) - _WRAP_SAFETY_PT
 
-    for line_tokens in logical_lines:
+    for hang_pt, line_tokens in logical_lines:
+        hang_emu = int(round(hang_pt * EMU_PER_PT))
         cur, cur_w, cur_size = [], 0.0, 0.0
-        avail = avail_at(y)
+        first_visual = True  # 이 논리 줄의 첫 시각 줄(=prefix 포함, 들여쓰기 없음)인가
+        # 첫 줄은 hang 미반영, continuation 은 hang_pt 차감(폭이 비정상으로 작아지지 않게 1pt clamp).
+        def avail_now(top, is_first):
+            a = avail_at(top)
+            return a if is_first else max(a - hang_pt, 1.0)
+        avail = avail_now(y, first_visual)
         for tok, style in line_tokens:
             size = style[1]
             if font is not None:
@@ -483,9 +542,10 @@ def _wrap_around(logical_lines, narrow_pt: float, full_pt: float, img_bottom_pt:
                 while cur and cur[-1][0].isspace():
                     cur.pop()
                 if cur:
-                    visual.append(cur)
+                    visual.append((0 if first_visual else hang_emu, cur))
                     y += cur_size * lf
-                    avail = avail_at(y)
+                    first_visual = False
+                    avail = avail_now(y, first_visual)
                 cur, cur_w, cur_size = [], 0.0, 0.0
                 if is_space:
                     continue
@@ -498,7 +558,7 @@ def _wrap_around(logical_lines, narrow_pt: float, full_pt: float, img_bottom_pt:
         while cur and cur[-1][0].isspace():
             cur.pop()
         if cur:
-            visual.append(cur)
+            visual.append((0 if first_visual else hang_emu, cur))
             y += cur_size * lf
     return visual, y
 
@@ -506,7 +566,7 @@ def _wrap_around(logical_lines, narrow_pt: float, full_pt: float, img_bottom_pt:
 # 시각 줄들을 텍스트 프레임에 1줄=1문단으로 그린다(연속 동일 style 토큰은 한 run 으로 병합).
 # 줄높이를 metric(lf)과 일치시키기 위해 문단 간격을 0, 줄간격을 1.0 으로 고정.
 def _render_visual_lines(tf, visual_lines):
-    for i, line in enumerate(visual_lines):
+    for i, (marL_emu, line) in enumerate(visual_lines):
         p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
         try:
             p.line_spacing = 1.0
@@ -514,6 +574,9 @@ def _render_visual_lines(tf, visual_lines):
             p.space_after = Pt(0)
         except Exception:
             pass
+        # continuation 시각 줄은 marL 만큼 들여써 첫 글자에 맞춘다(prefix 미반복 → indent=0).
+        if marL_emu > 0:
+            _set_hanging_indent(p, marL_emu, indent_emu=0)
         merged = []
         for tok, style in line:
             if merged and merged[-1][1] == style:
