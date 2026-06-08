@@ -86,11 +86,28 @@ def find_shape_by_index(prs: Presentation, shape_index: ShapePath, slide_index: 
     return slide, shape
 
 
+# 런의 글꼴을 라틴·동아시아(한글)·복합문자에 모두 적용한다.
+# python-pptx 의 font.name 은 <a:latin> 만 설정하므로, 한글(EA)이 템플릿 테마
+# 글꼴로 대체되지 않도록 <a:ea>/<a:cs> 도 같은 글꼴로 지정한다.
+# (이게 없으면 PPT→PDF(LibreOffice) 변환 시 한글이 Noto/Nanum 으로 대체된다.)
+def _apply_font_name(run, name):
+    run.font.name = name  # <a:latin>
+    rPr = run._r.get_or_add_rPr()
+    prev = rPr.find(qn('a:latin'))
+    for tag in ('a:ea', 'a:cs'):
+        el = rPr.find(qn(tag))
+        if el is None:
+            el = rPr.makeelement(qn(tag), {})
+            prev.addnext(el)
+        el.set('typeface', name)
+        prev = el
+
+
 # Add a styled text run
 def add_styled_run(paragraph, text, font_name, font_size, underline=False, color=None):
     r = paragraph.add_run()
     r.text = text
-    r.font.name = font_name
+    _apply_font_name(r, font_name)
     r.font.size = Pt(font_size)
     r.font.underline = underline
     if color:
@@ -163,7 +180,7 @@ def add_run_with_overrides(paragraph, text, font_name, font_size, base_underline
         return
     r = paragraph.add_run()
     r.text = text
-    r.font.name = font_name
+    _apply_font_name(r, font_name)
     ov = overrides or {}
     r.font.size = Pt(ov.get("size", font_size))
     r.font.underline = ov.get("underline", base_underline)
@@ -179,6 +196,10 @@ def add_run_with_overrides(paragraph, text, font_name, font_size, base_underline
 # ============================================================
 
 EMU_PER_PT = 12700  # 1pt = 12700 EMU
+
+# 본문 줄간격(배수). 문단 line_spacing 과 높이 추정(lf)에 동일하게 적용해
+# 실제 렌더와 추정 높이가 어긋나지 않게 한다. 1.0 = 폰트 단일 줄간격(metric 기준).
+LINE_SPACING = 1.15
 
 # ── 실제 폰트 metric 측정 (Pillow) ──────────────────────────────
 # 한화고딕 .ttf 를 한 번 로드해 글자 advance 폭·줄높이를 직접 잰다.
@@ -310,6 +331,7 @@ def _estimate_text_frame_height(shape, line_factor: float = None) -> int:
 
     font = _get_metric_font()
     lf = line_factor if line_factor is not None else (_line_height_em(font) if font else 1.2)
+    lf *= LINE_SPACING  # 문단 line_spacing 과 동일 배수 적용 → 추정 높이가 실제 렌더와 일치
 
     total_pt = 0.0
     for para in tf.paragraphs:
@@ -381,7 +403,7 @@ def _fill_text_frame(tf, text: str, add_inter_article_gap: bool = True):
             # PowerPoint 기본/테마 줄간격이 적용되면 실제 렌더가 _estimate_text_frame_height
             # 추정보다 커져 이미지 없는 기사 아래 간격이 잠식된다(기사 간 간격 불균등의 원인).
             try:
-                p.line_spacing = 1.0
+                p.line_spacing = LINE_SPACING
                 p.space_before = Pt(0)
                 p.space_after = Pt(0)
             except Exception:
@@ -513,7 +535,7 @@ def _tokens_for_line(line: str, font_name: str, base_size: int, base_underline: 
 # marL 로 들여써 첫 글자에 맞춘다. _wrap_line_count·_estimate_text_frame_height 와 동일 규칙.
 # 반환: (visual_lines, total_height_pt). visual_lines 의 각 원소 = (marL_emu, [(token, style), ...]).
 def _wrap_around(logical_lines, narrow_pt: float, full_pt: float, img_bottom_pt: float, font):
-    lf = _line_height_em(font) if font else 1.2
+    lf = (_line_height_em(font) if font else 1.2) * LINE_SPACING
     visual = []
     y = 0.0
 
@@ -564,12 +586,12 @@ def _wrap_around(logical_lines, narrow_pt: float, full_pt: float, img_bottom_pt:
 
 
 # 시각 줄들을 텍스트 프레임에 1줄=1문단으로 그린다(연속 동일 style 토큰은 한 run 으로 병합).
-# 줄높이를 metric(lf)과 일치시키기 위해 문단 간격을 0, 줄간격을 1.0 으로 고정.
+# 줄높이를 metric(lf)과 일치시키기 위해 문단 간격을 0, 줄간격을 LINE_SPACING 으로 고정.
 def _render_visual_lines(tf, visual_lines):
     for i, (marL_emu, line) in enumerate(visual_lines):
         p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
         try:
-            p.line_spacing = 1.0
+            p.line_spacing = LINE_SPACING
             p.space_before = Pt(0)
             p.space_after = Pt(0)
         except Exception:
@@ -591,7 +613,7 @@ def _add_styled_token_run(p, text: str, style):
     name, size, underline, italic, bold, color = style
     r = p.add_run()
     r.text = text
-    r.font.name = name
+    _apply_font_name(r, name)
     r.font.size = Pt(size)
     r.font.underline = underline
     r.font.italic = italic

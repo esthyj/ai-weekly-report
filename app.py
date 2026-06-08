@@ -28,6 +28,7 @@ from src.config import IMAGES_DIR, OUTPUT_DIR, PPT_TEMPLATE_FILE, ensure_directo
 from src.image_generator import generate_image
 from src.news_crawler import CrawlerConfig, crawl_news, select_articles_by_indices
 from src.news_summarize import combine_summaries, generate_summaries
+from src.pdf_converter import convert_pptx_to_pdf
 from src.ppt_maker import create_report, split_articles
 from src.session_store import SessionState, StageState, store
 
@@ -406,6 +407,21 @@ def download(sid: str):
         session.ppt_path,
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         filename=Path(session.ppt_path).name,
+    )
+
+
+@app.get("/api/{sid}/download-pdf")
+def download_pdf(sid: str):
+    session = _require(sid)
+    if not session.ppt_path or not Path(session.ppt_path).exists():
+        raise HTTPException(404, detail="PPT 파일을 찾을 수 없습니다.")
+    pdf_path = convert_pptx_to_pdf(session.ppt_path)
+    if not pdf_path:
+        raise HTTPException(500, detail="PDF 변환에 실패했습니다. (LibreOffice 미설치 또는 변환 오류)")
+    return FileResponse(
+        str(pdf_path),
+        media_type="application/pdf",
+        filename=pdf_path.name,
     )
 
 
